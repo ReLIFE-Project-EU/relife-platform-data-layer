@@ -6,4 +6,7 @@ env: {}
 
 dotenv: [.env, .env.default]
 
+includes:
+  central: ./central-services/Taskfile.yml
+
 tasks: {}
