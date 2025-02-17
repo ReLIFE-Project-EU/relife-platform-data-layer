@@ -1,0 +1,39 @@
+version: "3"
+
+vars:
+  SUPABASE_COMPOSE_PROJECT_NAME: supabase
+  SUPABASE_GIT_URL: https://github.com/supabase/supabase
+  SUPABASE_GIT_TREEISH: v1.24.09
+  SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/supabase"
+
+tasks:
+  supabase-clone:
+    # https://supabase.com/docs/guides/self-hosting/docker#installing-and-running-supabase
+    desc: Clone the Supabase repository
+    cmds:
+      - git clone --filter=blob:none --no-checkout {{.SUPABASE_GIT_URL}} {{.SUPABASE_GIT_DIR}}
+      - >
+        cd {{.SUPABASE_GIT_DIR}} &&
+        git sparse-checkout set --cone docker &&
+        git checkout {{.SUPABASE_GIT_TREEISH}}
+    status:
+      - test -d {{.SUPABASE_GIT_DIR}}
+
+  supabase-deploy:
+    desc: Deploy the Supabase services
+    deps:
+      - supabase-clone
+    dir: "{{.SUPABASE_GIT_DIR}}/docker"
+    cmds:
+      - cp .env.example .env
+      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} pull
+      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} up -d --build
+    status:
+      - test -f {{.SUPABASE_GIT_DIR}}/docker/.env
+
+  supabase-clean:
+    desc: Stop and remove the Supabase services
+    cmds:
+      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} down -v
+      - cmd: rm {{.SUPABASE_GIT_DIR}}/docker/.env
+        ignore_error: true

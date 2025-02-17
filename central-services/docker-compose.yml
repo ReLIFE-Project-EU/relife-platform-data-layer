@@ -1,0 +1,34 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    restart: on-failure
+    ports:
+      - ${DEV_KEYCLOAK_PORT:-8080}:8080
+    command: [start-dev]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_PROXY: edge
+      KC_LOG_CONSOLE_COLOR: "true"
+      KC_LOG_LEVEL: debug
+      KC_DB: postgres
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: ${KEYCLOAK_POSTGRES_DBNAME}
+      KC_DB_URL_HOST: postgres
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      PROXY_ADDRESS_FORWARDING: "true"
+      # It is crucial to set the frontend URL for Keycloak to avoid errors
+      # when the token introspection endpoint is called using a different
+      # hostname from the one originally used to issue the token
+      # https://stackoverflow.com/a/62310113
+      KC_HOSTNAME_URL: ${KC_HOSTNAME_URL:-http://localhost:${DEV_KEYCLOAK_PORT:-8080}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data: {}
+  minio_data: {}
