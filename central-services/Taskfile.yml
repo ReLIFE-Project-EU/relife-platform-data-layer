@@ -22,17 +22,23 @@ tasks:
     status:
       - test -d {{.SUPABASE_GIT_DIR}}
 
-  supabase-deploy:
-    desc: Deploy the Supabase services
+  supabase-init:
     deps:
       - supabase-clone
     dir: "{{.SUPABASE_GIT_DIR}}/docker"
     cmds:
       - cp .env.example .env
       - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} pull
-      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} up -d --build
     status:
       - test -f {{.SUPABASE_GIT_DIR}}/docker/.env
+
+  supabase-deploy:
+    desc: Deploy the Supabase services
+    deps:
+      - supabase-init
+    dir: "{{.SUPABASE_GIT_DIR}}/docker"
+    cmds:
+      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} up -d --build
 
   supabase-clean:
     desc: Stop and remove the Supabase services
