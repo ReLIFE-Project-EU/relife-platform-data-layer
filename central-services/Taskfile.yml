@@ -26,6 +26,8 @@ tasks:
     cmds:
       - envsubst < {{.TASKFILE_DIR}}/.env.supabase.tmpl > {{.SUPABASE_GIT_DIR}}/docker/.env
       - cp -f {{.TASKFILE_DIR}}/docker-compose-supabase.yml {{.SUPABASE_GIT_DIR}}/docker/docker-compose.yml
+    preconditions:
+      - test -f {{.ENV_KEYS_PATH}}
 
   supabase-deploy:
     desc: Deploy all Supabase services using Docker Compose in detached mode
@@ -38,7 +40,8 @@ tasks:
   supabase-clean:
     desc: Stop and remove all Supabase services and their volumes, then clean up the cloned repository
     cmds:
-      - cd {{.SUPABASE_GIT_DIR}}/docker && docker compose down -v
+      - cmd: cd {{.SUPABASE_GIT_DIR}}/docker && docker compose down -v
+        ignore_error: true
       - cmd: rm -fr {{.SUPABASE_GIT_DIR}}
         ignore_error: true
 
@@ -54,7 +57,7 @@ tasks:
         psql {{.POSTGRES_CONNECTION_STRING}}/postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{.KEYCLOAK_POSTGRES_DBNAME}}'" | grep 1
 
   keycloak-deploy:
-    desc: Deploy Keycloak service using Docker Compose, waiting for it to be fully started
+    desc: Deploy Keycloak service using Docker Compose
     deps:
       - create-keycloak-db
     cmds:

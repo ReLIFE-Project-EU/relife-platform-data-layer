@@ -150,11 +150,17 @@ services:
       # GOTRUE_HOOK_SEND_EMAIL_URI: "http://host.docker.internal:54321/functions/v1/email_sender"
       # GOTRUE_HOOK_SEND_EMAIL_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
 
+      # Enable Keycloak as an external authentication provider
       GOTRUE_EXTERNAL_KEYCLOAK_ENABLED: true
-      GOTRUE_EXTERNAL_KEYCLOAK_CLIENT_ID: Supabase
-      GOTRUE_EXTERNAL_KEYCLOAK_SECRET: aGeG4sCQkuHiP38msx1T1Q48auS781Cf
-      GOTRUE_EXTERNAL_KEYCLOAK_REDIRECT_URI: http://localhost:8000/auth/v1/callback
-      GOTRUE_EXTERNAL_KEYCLOAK_URL: http://host.docker.internal:8080/realms/Test
+      # Client ID configured in Keycloak for Supabase authentication
+      GOTRUE_EXTERNAL_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_SUPABASE_CLIENT_ID}
+      # Client secret from Keycloak for secure communication
+      GOTRUE_EXTERNAL_KEYCLOAK_SECRET: ${KEYCLOAK_SUPABASE_CLIENT_SECRET}
+      # Callback URL where Keycloak will redirect after successful authentication
+      GOTRUE_EXTERNAL_KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_SUPABASE_REDIRECT_URI}
+      # Base URL of the Keycloak server including realm path
+      # This needs to be accessible from inside the Docker container running the auth service
+      GOTRUE_EXTERNAL_KEYCLOAK_URL: ${KEYCLOAK_SUPABASE_URL}
 
   rest:
     container_name: supabase-rest

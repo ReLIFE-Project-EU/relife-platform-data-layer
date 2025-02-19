@@ -2,6 +2,7 @@
 ########
 
 ./central-services/supabase
+.env.keys
 
 ## Node
 #######

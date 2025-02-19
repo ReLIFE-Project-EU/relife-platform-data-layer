@@ -1,12 +1,58 @@
 version: "3"
 
-vars: {}
+vars:
+  JWT_CLI_IMAGE: bitnami/jwt-cli:6
+  ENV_KEYS_PATH: "{{.ROOT_DIR}}/.env.keys"
 
 env: {}
 
-dotenv: [.env, .env.default]
+dotenv: [.env, .env.default, .env.keys]
 
 includes:
   central: ./central-services/Taskfile.yml
 
-tasks: {}
+tasks:
+  echo-anon-key:
+    cmds:
+      - >
+        docker run --rm {{.JWT_CLI_IMAGE}} encode --alg HS256 --secret {{.SUPABASE_JWT_SECRET}}
+        --exp="2y"
+        --iss="supabase-demo"
+        --payload="role=anon"
+
+  echo-service-key:
+    cmds:
+      - >
+        docker run --rm {{.JWT_CLI_IMAGE}} encode --alg HS256 --secret {{.SUPABASE_JWT_SECRET}}
+        --exp="2y"
+        --iss="supabase-demo"
+        --payload="role=service_role"
+
+  gen-keys:
+    desc: Generate new JWT tokens for Supabase anonymous and service role access
+    vars:
+      SUPABASE_ANON_KEY:
+        sh: task echo-anon-key
+      SUPABASE_SERVICE_ROLE_KEY:
+        sh: task echo-service-key
+    cmds:
+      - echo "SUPABASE_ANON_KEY={{.SUPABASE_ANON_KEY}}" > {{.ENV_KEYS_PATH}}
+      - echo "SUPABASE_SERVICE_ROLE_KEY={{.SUPABASE_SERVICE_ROLE_KEY}}" >> {{.ENV_KEYS_PATH}}
+    status:
+      - test -f {{.ENV_KEYS_PATH}}
+
+  dev-tool-1:
+    desc: Start the first open access tool in development mode with hot reloading enabled
+    dir: "{{.ROOT_DIR}}/open-access-tool-01"
+    env:
+      VITE_SUPABASE_ANON_KEY: "{{.SUPABASE_ANON_KEY}}"
+    cmds:
+      - npm install
+      - npm run dev
+
+  clean:
+    desc: Stop and remove all running services and clean up associated data
+    cmds:
+      - task: central:clean
+      - cmd: rm -f {{.ENV_KEYS_PATH}}
+        ignore_error: true
