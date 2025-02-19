@@ -1,45 +1,48 @@
+import {
+  Button,
+  Code,
+  Container,
+  MantineProvider,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import "@mantine/core/styles.css";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import "./App.css";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function getClient() {
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const supabaseUrl = "http://localhost:8000";
-  const supabaseKey = ANON_KEY;
+  const supabaseKey = anonKey;
   return createClient(supabaseUrl, supabaseKey);
 }
 
 async function signInWithKeycloak({ supabase }) {
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  await supabase.auth.signInWithOAuth({
     provider: "keycloak",
     options: {
       scopes: "openid",
     },
   });
-
-  console.log("data", data);
-  console.log("error", error);
 }
 
 const supabase = getClient();
 
 function App() {
-  const [count, setCount] = useState(0);
   const [session, setSession] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("session", session);
+      console.debug("session", session);
       setSession(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log("session", session);
+      console.debug("session", session);
       setSession(session);
     });
 
@@ -50,30 +53,48 @@ function App() {
     await signInWithKeycloak({ supabase });
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
-    <>
-      <button onClick={handleLogin}>Sign In with Keycloak</button>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <MantineProvider>
+      <Container size="sm" py="xl">
+        <Stack align="center" spacing="xl" justify="center">
+          {!session ? (
+            <Button onClick={handleLogin} variant="filled" size="lg">
+              Sign In with Keycloak
+            </Button>
+          ) : (
+            <Paper shadow="sm" p="md" withBorder>
+              <Text>
+                Signed in as: <Code>{session.user.email}</Code>
+              </Text>
+              <Button
+                onClick={handleLogout}
+                variant="light"
+                color="red"
+                size="sm"
+                mt="sm"
+              >
+                Sign Out
+              </Button>
+            </Paper>
+          )}
+
+          <Title order={1} align="center">
+            Welcome to the Open Access Tool
+          </Title>
+
+          <Text align="center">
+            This is a minimal example that shows how to configure a Vite + React
+            + Mantine web application for integration with ReLIFE&apos;s backend
+            services, which are based on Supabase as the data layer and Keycloak
+            for identity management.
+          </Text>
+        </Stack>
+      </Container>
+    </MantineProvider>
   );
 }
 
