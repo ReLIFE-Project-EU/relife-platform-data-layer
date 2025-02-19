@@ -1,8 +1,0 @@
-## Retrieved from:
-## https://github.com/supabase/supabase/blob/master/docker/.gitignore
-
-volumes/db/data
-volumes/storage
-.env
-test.http
-docker-compose.override.yml
