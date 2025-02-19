@@ -1,13 +1,11 @@
 version: "3"
 
 vars:
-  SUPABASE_COMPOSE_PROJECT_NAME: supabase
   SUPABASE_GIT_URL: https://github.com/supabase/supabase
   SUPABASE_GIT_TREEISH: v1.24.09
   SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/supabase"
   POSTGRES_IMAGE: postgres:16
   POSTGRES_CONNECTION_STRING: "postgres://{{.SUPABASE_POSTGRES_USER}}:{{.SUPABASE_POSTGRES_PASSWORD}}@host.docker.internal:{{.SUPABASE_POSTGRES_PORT}}"
-  KEYCLOAK_COMPOSE_PROJECT_NAME: keycloak
 
 tasks:
   supabase-clone:
@@ -25,12 +23,9 @@ tasks:
   supabase-init:
     deps:
       - supabase-clone
-    dir: "{{.SUPABASE_GIT_DIR}}/docker"
     cmds:
-      - cp .env.example .env
-      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} pull
-    status:
-      - test -f {{.SUPABASE_GIT_DIR}}/docker/.env
+      - envsubst < {{.TASKFILE_DIR}}/.env.supabase.tmpl > {{.SUPABASE_GIT_DIR}}/docker/.env
+      - cp -f {{.TASKFILE_DIR}}/docker-compose-supabase.yml {{.SUPABASE_GIT_DIR}}/docker/docker-compose.yml
 
   supabase-deploy:
     desc: Deploy the Supabase services
@@ -38,13 +33,13 @@ tasks:
       - supabase-init
     dir: "{{.SUPABASE_GIT_DIR}}/docker"
     cmds:
-      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} up -d --build
+      - docker compose up -d
 
   supabase-clean:
     desc: Stop and remove the Supabase services
     cmds:
-      - docker compose -p {{.SUPABASE_COMPOSE_PROJECT_NAME}} down -v
-      - cmd: rm {{.SUPABASE_GIT_DIR}}/docker/.env
+      - cd {{.SUPABASE_GIT_DIR}}/docker && docker compose down -v
+      - cmd: rm -fr {{.SUPABASE_GIT_DIR}}
         ignore_error: true
 
   create-keycloak-db:
@@ -64,4 +59,4 @@ tasks:
     deps:
       - create-keycloak-db
     cmds:
-      - docker compose -p {{.KEYCLOAK_COMPOSE_PROJECT_NAME}} -f {{.TASKFILE_DIR}}/docker-compose-keycloak.yml up -d --build --wait
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-keycloak.yml up -d --build --wait
