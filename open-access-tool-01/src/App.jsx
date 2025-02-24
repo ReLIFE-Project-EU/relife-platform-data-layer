@@ -13,9 +13,11 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
 function getClient() {
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const supabaseUrl = "http://localhost:8000";
-  const supabaseKey = anonKey;
+  const supabaseUrl =
+    import.meta.env.VITE_SUPABASE_URL || "http://localhost:8000";
+
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   return createClient(supabaseUrl, supabaseKey);
 }
 
