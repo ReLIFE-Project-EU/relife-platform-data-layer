@@ -3,8 +3,14 @@ version: "3"
 vars:
   JWT_CLI_IMAGE: bitnami/jwt-cli:6
   ENV_KEYS_PATH: "{{.ROOT_DIR}}/.env.keys"
+  KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOST}}:{{.KEYCLOAK_PORT}}"
+  # Base URL of the Keycloak server including realm path
+  # Must be accessible from inside the Docker container running the auth service
+  KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_HOSTNAME_URL}}/realms/{{.KEYCLOAK_REALM}}"
 
-env: {}
+env:
+  KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
+  KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_SUPABASE_URL}}"
 
 dotenv: [.env, .env.default, .env.keys]
 
@@ -41,11 +47,14 @@ tasks:
     status:
       - test -f {{.ENV_KEYS_PATH}}
 
-  dev-tool-1:
-    desc: Start the first open access tool in development mode with hot reloading enabled
+  dev-tool-first:
+    desc: Start the first open access tool in development mode
     dir: "{{.ROOT_DIR}}/open-access-tool-01"
     env:
       VITE_SUPABASE_ANON_KEY: "{{.SUPABASE_ANON_KEY}}"
+      VITE_KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_SUPABASE_CLIENT_ID}}"
+      VITE_KEYCLOAK_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
+      VITE_KEYCLOAK_REALM: "{{.KEYCLOAK_REALM}}"
     cmds:
       - npm install
       - npm run dev
