@@ -4,6 +4,9 @@ An example stack demonstrating how all components of the ReLIFE platform fit tog
 
 ## Configuration
 
+> [!IMPORTANT]
+> This project uses `host.docker.internal` to access the host transparently from both inside and outside the Docker containers. If you're on Linux, please note that `host.docker.internal` is not configured inside Docker containers by default. Additionally, to enable this hostname from outside containers (i.e., from the host itself), you should add an entry to your `/etc/hosts` file to map `host.docker.internal` to `127.0.0.1`.
+
 The configuration is defined via dotenv files, specifically there's an `.env.default` file that contains the default values. You may create a custom `.env` file to override the default values.
 
 Technically, you should only need to do a few things:
@@ -41,13 +44,17 @@ You'll need to access the Keycloak admin console at `http://localhost:${KEYCLOAK
 
 During the creation of the Supabase Keycloak client, you'll need to specify what Keycloak refers to as the _Login Settings_:
 
-| Setting Name                    | Description                                                                          | Recommended Value          |
-| ------------------------------- | ------------------------------------------------------------------------------------ | -------------------------- |
-| Root URL                        | The base URL where your application is hosted                                        | `http://localhost:10100`   |
-| Home URL                        | Default URL to use when the auth server needs to redirect or link back to the client | `http://localhost:10100`   |
-| Valid Redirect URIs             | Allowed URLs where Keycloak can redirect after authentication                        | `http://localhost:10100/*` |
-| Valid Post Logout Redirect URIs | Allowed URLs where Keycloak can redirect after logout                                | `+`                        |
-| Web Origins                     | Allowed origins for CORS requests to Keycloak                                        | `+`                        |
+| Setting Name                    | Description                                                                          | Recommended Value                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Root URL                        | The base URL where your application is hosted                                        | `http://localhost:10100`                                 |
+| Home URL                        | Default URL to use when the auth server needs to redirect or link back to the client | `http://localhost:10100`                                 |
+| Valid Redirect URIs             | Allowed URLs where Keycloak can redirect after authentication                        | `http://localhost:10100/*` and `http://localhost:8000/*` |
+| Valid Post Logout Redirect URIs | Allowed URLs where Keycloak can redirect after logout                                | `+`                                                      |
+| Web Origins                     | Allowed origins for CORS requests to Keycloak                                        | `+`                                                      |
+
+> [!TIP]
+> * `http://localhost:10100` is the URL of the open access tool web application
+> * `http://localhost:8000` is the URL of the Supabase API gateway
 
 Then, copy the client secret found in the _Credentials_ section of the client configuration. Copy it to the `.env` file as `KEYCLOAK_SUPABASE_CLIENT_SECRET`. For example:
 
