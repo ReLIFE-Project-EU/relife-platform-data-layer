@@ -1,0 +1,25 @@
+[project]
+name = "service-api"
+version = "0.1.0"
+description = "An example of a ReLIFE service as an HTTP API"
+readme = "README.md"
+authors = [
+    { name = "Andres Garcia Mangas", email = "andres.garcia@fundacionctic.org" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.11",
+    "pydantic-settings>=2.8.1",
+    "supabase>=2.14.0",
+    "uvicorn>=0.34.0",
+]
+
+[project.scripts]
+service-api = "service_api:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["black>=25.1.0", "isort>=6.0.1"]
