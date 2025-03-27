@@ -82,3 +82,9 @@ task dev-tool-first
 ```
 
 If you look at the source code in `open-access-tool-01`, you can see how to organize the code, create the Supabase client, and use it to log in and log out users via the Keycloak provider.
+
+## TODOs
+
+* Explain that the _service accounts roles_ option needs to be enabled in the Keycloak client settings for backend APIs to use client credentials grants.
+* Document that each backend component should have its own dedicated Keycloak client.
+* Explain that backend API clients need the realm-management client role "realm-admin" assigned to their service account to be able to check user role mappings.

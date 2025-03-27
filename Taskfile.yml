@@ -7,6 +7,7 @@ vars:
   # Base URL of the Keycloak server including realm path
   # Must be accessible from inside the Docker container running the auth service
   KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_HOSTNAME_URL}}/realms/{{.KEYCLOAK_REALM}}"
+  SUPABASE_URL: http://localhost:8000
 
 env:
   KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
@@ -58,6 +59,18 @@ tasks:
     cmds:
       - npm install
       - npm run dev
+
+  dev-service-api:
+    desc: Start the service API in development mode
+    dir: "{{.ROOT_DIR}}/service-api"
+    env:
+      SUPABASE_URL: "{{.SUPABASE_URL}}"
+      SUPABASE_KEY: "{{.SUPABASE_SERVICE_ROLE_KEY}}"
+      KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_SUPABASE_CLIENT_ID}}"
+      KEYCLOAK_CLIENT_SECRET: "{{.KEYCLOAK_SUPABASE_CLIENT_SECRET}}"
+    cmds:
+      - uv sync
+      - uv run fastapi dev --reload --host {{.SERVICE_API_HOST}} --port {{.SERVICE_API_PORT}} src/service_api/app.py
 
   clean:
     desc: Stop and remove all running services and clean up associated data
