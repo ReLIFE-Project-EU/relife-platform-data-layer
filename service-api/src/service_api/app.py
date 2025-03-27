@@ -1,3 +1,4 @@
+import logging
 import time
 from functools import lru_cache
 from importlib.metadata import version
