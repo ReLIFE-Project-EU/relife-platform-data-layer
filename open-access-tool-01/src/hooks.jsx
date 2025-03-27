@@ -21,7 +21,7 @@ export function useSupabaseSession() {
   return session;
 }
 
-export function useWhoami(session, withRoles = true) {
+export function useWhoami(session) {
   const [whoami, setWhoami] = useState(null);
   const [error, setError] = useState(null);
   const [fullName, setFullName] = useState(null);
@@ -32,7 +32,7 @@ export function useWhoami(session, withRoles = true) {
       return;
     }
 
-    fetch(withRoles ? "/api/whoami-with-roles" : "/api/whoami", {
+    fetch("/api/whoami", {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
@@ -52,7 +52,7 @@ export function useWhoami(session, withRoles = true) {
         setWhoami(null);
         setFullName(null);
       });
-  }, [session?.access_token, withRoles]);
+  }, [session?.access_token]);
 
   return { whoami, error, fullName };
 }

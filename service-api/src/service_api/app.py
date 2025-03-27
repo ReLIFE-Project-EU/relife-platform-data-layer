@@ -1,9 +1,7 @@
-import logging
 import time
 from functools import lru_cache
 from importlib.metadata import version
-from typing import Annotated, Optional
-from urllib.parse import urlparse
+from typing import Annotated
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -14,6 +12,8 @@ from supabase.client import ClientOptions
 
 
 class Settings(BaseSettings):
+    """Configuration settings for the service API loaded from environment variables."""
+
     supabase_url: str
     # Service role key - this is a special API key with admin privileges that bypasses
     # Row Level Security (RLS) policies and has full access to the database. It should
@@ -25,11 +25,15 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings():
+    """Get cached application settings."""
+
     return Settings()
 
 
 async def get_service_client(settings: Settings = Depends(get_settings)) -> AsyncClient:
-    """Get Supabase client with service role (admin)"""
+    """Create a Supabase client with service role (admin) privileges.
+    This client bypasses Row Level Security and has full database access.
+    Should only be used for admin/service operations."""
 
     client = await create_async_client(
         settings.supabase_url,
@@ -44,7 +48,8 @@ async def get_user_client(
     user_token: str,
     settings: Settings = Depends(get_settings),
 ) -> AsyncClient:
-    """Get Supabase client with user context"""
+    """Create a Supabase client with user context.
+    This client respects Row Level Security policies based on the user's token."""
 
     client = await create_async_client(
         settings.supabase_url,
@@ -74,7 +79,8 @@ security = HTTPBearer()
 async def get_keycloak_token(
     keycloak_url: str, client_id: str, client_secret: str
 ) -> str:
-    """Get admin access token from Keycloak"""
+    """Obtain an admin access token from Keycloak using client credentials flow.
+    Raises HTTPException if token request fails."""
 
     token_url = f"{keycloak_url}/protocol/openid-connect/token"
 
@@ -98,7 +104,8 @@ async def get_keycloak_token(
 async def get_keycloak_user_roles(
     keycloak_url: str, admin_token: str, user_id: str
 ) -> list:
-    """Get user roles from Keycloak"""
+    """Fetch a user's realm roles from Keycloak's admin API.
+    Requires an admin token with appropriate permissions."""
 
     role_mapper_base_url = keycloak_url.replace("/realms", "/admin/realms").rstrip("/")
     role_mapper_url = f"{role_mapper_base_url}/users/{user_id}/role-mappings/realm"
@@ -117,6 +124,10 @@ async def get_authenticated_user(
     settings: Settings = Depends(get_settings),
     fetch_roles: bool = False,
 ) -> dict:
+    """Authenticate a user using their bearer token and optionally fetch their Keycloak roles.
+    Returns user info and token, with roles if requested.
+    Raises HTTPException if authentication fails."""
+
     try:
         token = credentials.credentials
         client = await get_service_client(settings)
@@ -151,6 +162,8 @@ async def get_authenticated_user_with_roles(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     settings: Settings = Depends(get_settings),
 ) -> dict:
+    """Convenience wrapper to get authenticated user with their Keycloak roles included."""
+
     return await get_authenticated_user(credentials, settings, fetch_roles=True)
 
 
@@ -162,22 +175,23 @@ CurrentUserWithRoles = Annotated[dict, Depends(get_authenticated_user_with_roles
 
 @app.get("/health")
 async def health_check():
+    """Basic health check endpoint that returns service status and current timestamp."""
+
     return {"status": "healthy", "timestamp": int(time.time())}
 
 
 @app.get("/whoami")
-async def whoami(current_user: CurrentUser):
-    return current_user
-
-
-@app.get("/whoami-with-roles")
 async def whoami_with_roles(current_user: CurrentUserWithRoles):
+    """Return authenticated user's information including their Keycloak roles."""
+
     return current_user
 
 
 # Example protected endpoint using service role
 @app.get("/admin/users")
 async def list_all_users(supabase: ServiceClient):
+    """List all users in the system. Requires admin privileges."""
+
     # Check the admin role here?
     response = (
         await supabase.table("users").select("id, email, created_at, role").execute()
