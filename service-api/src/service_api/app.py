@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings
 from supabase import AsyncClient, create_async_client
 from supabase.client import ClientOptions
 
+_logger = logging.getLogger("uvicorn")
+
 
 class Settings(BaseSettings):
     """Configuration settings for the service API loaded from environment variables."""
@@ -111,6 +113,8 @@ async def get_keycloak_user_roles(
     role_mapper_url = f"{role_mapper_base_url}/users/{user_id}/role-mappings/realm"
 
     async with httpx.AsyncClient() as client:
+        _logger.debug("Requesting roles for user %s from %s", user_id, role_mapper_url)
+
         response = await client.get(
             role_mapper_url, headers={"Authorization": f"Bearer {admin_token}"}
         )
