@@ -17,16 +17,10 @@ First, you need to create the dotenv file that will contain the JWT tokens for S
 task gen-keys
 ```
 
-Then, you can deploy the central services (Supabase and Keycloak) using the following commands:
+Then, you can deploy the central services (Supabase and Keycloak) using the following command:
 
 ```console
-task central:supabase-deploy
-```
-
-Wait for a few seconds for the Supabase services to be ready. Then, you can deploy the Keycloak service:
-
-```console
-task central:keycloak-deploy
+task central:deploy
 ```
 
 ### Configuring the Keycloak Realm

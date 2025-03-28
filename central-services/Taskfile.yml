@@ -68,6 +68,15 @@ tasks:
     cmds:
       - docker compose -f {{.TASKFILE_DIR}}/docker-compose-keycloak.yml down -v
 
+  deploy:
+    desc: Deploy all central services
+    vars:
+      SLEEP_SECONDS: 10
+    cmds:
+      - task: supabase-deploy
+      - sleep {{.SLEEP_SECONDS}}
+      - task: keycloak-deploy
+
   clean:
     desc: Stop and remove all central services (Supabase and Keycloak) and their associated data
     cmds:
