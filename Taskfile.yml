@@ -7,7 +7,6 @@ vars:
   # Base URL of the Keycloak server including realm path
   # Must be accessible from inside the Docker container running the auth service
   KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_HOSTNAME_URL}}/realms/{{.KEYCLOAK_REALM}}"
-  SUPABASE_URL: http://localhost:8000
 
 env:
   KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
@@ -48,14 +47,16 @@ tasks:
     status:
       - test -f {{.ENV_KEYS_PATH}}
 
-  dev-tool-first:
-    desc: Start the first open access tool in development mode
-    dir: "{{.ROOT_DIR}}/open-access-tool-01"
+  dev-webui:
+    desc: Start the open access tool web application in development mode
+    dir: "{{.ROOT_DIR}}/open-access-tool"
     env:
       VITE_SUPABASE_ANON_KEY: "{{.SUPABASE_ANON_KEY}}"
       VITE_KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_SUPABASE_CLIENT_ID}}"
       VITE_KEYCLOAK_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
       VITE_KEYCLOAK_REALM: "{{.KEYCLOAK_REALM}}"
+      VITE_SERVICE_API_HOST: "{{.RELIFE_SERVICE_API_HOST}}"
+      VITE_SERVICE_API_PORT: "{{.RELIFE_SERVICE_API_PORT}}"
     cmds:
       - npm install
       - npm run dev
@@ -66,11 +67,15 @@ tasks:
     env:
       SUPABASE_URL: "{{.SUPABASE_URL}}"
       SUPABASE_KEY: "{{.SUPABASE_SERVICE_ROLE_KEY}}"
-      KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_SUPABASE_CLIENT_ID}}"
-      KEYCLOAK_CLIENT_SECRET: "{{.KEYCLOAK_SUPABASE_CLIENT_SECRET}}"
+      KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_RELIFE_SERVICE_CLIENT_ID}}"
+      KEYCLOAK_CLIENT_SECRET: "{{.KEYCLOAK_RELIFE_SERVICE_CLIENT_SECRET}}"
     cmds:
       - uv sync
-      - uv run fastapi dev --reload --host {{.SERVICE_API_HOST}} --port {{.SERVICE_API_PORT}} src/service_api/app.py
+      - >
+        uv run fastapi dev --reload
+        --host {{.RELIFE_SERVICE_API_HOST}}
+        --port {{.RELIFE_SERVICE_API_PORT}}
+        src/service_api/app.py
 
   clean:
     desc: Stop and remove all running services and clean up associated data
