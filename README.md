@@ -9,6 +9,16 @@ An example stack demonstrating how all components of the ReLIFE platform fit tog
 
 The configuration is defined via dotenv files, specifically there's an `.env.default` file that contains the default values. You may create a custom `.env` file to override the default values.
 
+## Prerequisites
+
+Before you begin, ensure you have the following tools installed:
+
+- **Docker** - Required for running Supabase, Keycloak, and other containerised services
+- **Node.js** - Required for running the web UI and development tools
+- [**Task**](https://taskfile.dev/installation/) - Build tool used for running project commands and automation
+- [**uv**](https://github.com/astral-sh/uv) - Fast Python package installer and resolver, required for the service API
+- **Python** - Required for running the service API
+
 ## Deployment
 
 First, you need to create the dotenv file that will contain the JWT tokens for Supabase anonymous and service role access:
