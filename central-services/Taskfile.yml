@@ -6,6 +6,7 @@ vars:
   SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/src-supabase"
   POSTGRES_IMAGE: postgres:16
   POSTGRES_CONNECTION_STRING: "postgres://{{.SUPABASE_POSTGRES_USER}}:{{.SUPABASE_POSTGRES_PASSWORD}}@host.docker.internal:{{.SUPABASE_POSTGRES_PORT}}"
+  POSTGRES_CONNECTION_STRING_WITH_DB: "{{.POSTGRES_CONNECTION_STRING}}/{{.SUPABASE_POSTGRES_DBNAME}}"
 
 tasks:
   supabase-clone:
@@ -29,6 +30,12 @@ tasks:
     preconditions:
       - test -f {{.ENV_KEYS_PATH}}
 
+  supabase-migrate:
+    desc: Run the migrations for the Supabase project
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - supabase migrations up --db-url {{.POSTGRES_CONNECTION_STRING_WITH_DB}}
+
   supabase-deploy:
     desc: Deploy all Supabase services using Docker Compose in detached mode
     deps:
@@ -49,7 +56,7 @@ tasks:
     desc: Print the PostgreSQL connection string for the Supabase project
     silent: true
     cmds:
-      - echo "{{.POSTGRES_CONNECTION_STRING}}/{{.SUPABASE_POSTGRES_DBNAME}}"
+      - echo "{{.POSTGRES_CONNECTION_STRING_WITH_DB}}"
 
   create-keycloak-db:
     cmds:
@@ -81,6 +88,7 @@ tasks:
     cmds:
       - task: supabase-deploy
       - sleep {{.SLEEP_SECONDS}}
+      - task: supabase-migrate
       - task: keycloak-deploy
 
   clean:
