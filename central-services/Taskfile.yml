@@ -3,7 +3,7 @@ version: "3"
 vars:
   SUPABASE_GIT_URL: https://github.com/supabase/supabase
   SUPABASE_GIT_TREEISH: v1.24.09
-  SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/supabase"
+  SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/src-supabase"
   POSTGRES_IMAGE: postgres:16
   POSTGRES_CONNECTION_STRING: "postgres://{{.SUPABASE_POSTGRES_USER}}:{{.SUPABASE_POSTGRES_PASSWORD}}@host.docker.internal:{{.SUPABASE_POSTGRES_PORT}}"
 
@@ -44,6 +44,12 @@ tasks:
         ignore_error: true
       - cmd: rm -fr {{.SUPABASE_GIT_DIR}}
         ignore_error: true
+
+  supabase-pgurl:
+    desc: Print the PostgreSQL connection string for the Supabase project
+    silent: true
+    cmds:
+      - echo "{{.POSTGRES_CONNECTION_STRING}}/{{.SUPABASE_POSTGRES_DBNAME}}"
 
   create-keycloak-db:
     cmds:

@@ -1,7 +1,7 @@
 ## Misc
 ########
 
-./central-services/supabase
+./central-services/src-*
 .env.keys
 
 ## Node
