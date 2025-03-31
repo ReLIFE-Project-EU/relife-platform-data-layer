@@ -10,6 +10,10 @@ export function getClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+export function getServiceApiUrl() {
+  return import.meta.env.VITE_SERVICE_API_URL || "/api";
+}
+
 export function getKeycloakUrl() {
   return import.meta.env.VITE_KEYCLOAK_URL;
 }

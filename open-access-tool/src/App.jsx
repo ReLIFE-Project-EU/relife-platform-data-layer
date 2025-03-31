@@ -25,6 +25,7 @@ import {
   signInWithKeycloak,
   supabase,
 } from "./auth";
+import ReportRequests from "./components/ReportRequests";
 import { useSupabaseSession, useWhoami } from "./hooks";
 
 function App() {
@@ -216,6 +217,8 @@ function App() {
             </Stack>
           </Card>
         )}
+
+        {session && <ReportRequests session={session} />}
       </Stack>
     </Container>
   );

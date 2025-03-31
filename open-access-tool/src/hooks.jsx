@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "./auth";
+import { getServiceApiUrl, supabase } from "./auth";
 
 export function useSupabaseSession() {
   const [session, setSession] = useState(null);
@@ -32,7 +32,9 @@ export function useWhoami(session) {
       return;
     }
 
-    fetch("/api/whoami", {
+    const apiUrl = getServiceApiUrl();
+
+    fetch(`${apiUrl}/whoami`, {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },

@@ -1,3 +1,4 @@
+import datetime
 import logging
 import time
 from functools import lru_cache
@@ -12,6 +13,19 @@ from supabase import AsyncClient, create_async_client
 from supabase.client import ClientOptions
 
 _logger = logging.getLogger("uvicorn")
+
+try:
+    __version__ = version("service-api")
+except ImportError:
+    __version__ = "development"
+
+app = FastAPI(
+    title="Service API",
+    description="An example of a ReLIFE service as an HTTP API",
+    version=__version__,
+)
+
+security = HTTPBearer()
 
 
 class Settings(BaseSettings):
@@ -31,52 +45,6 @@ def get_settings():
     """Get cached application settings."""
 
     return Settings()
-
-
-async def get_service_client(settings: Settings = Depends(get_settings)) -> AsyncClient:
-    """Create a Supabase client with service role (admin) privileges.
-    This client bypasses Row Level Security and has full database access.
-    Should only be used for admin/service operations."""
-
-    client = await create_async_client(
-        settings.supabase_url,
-        settings.supabase_key,
-        options=ClientOptions(),
-    )
-
-    return client
-
-
-async def get_user_client(
-    user_token: str,
-    settings: Settings = Depends(get_settings),
-) -> AsyncClient:
-    """Create a Supabase client with user context.
-    This client respects Row Level Security policies based on the user's token."""
-
-    client = await create_async_client(
-        settings.supabase_url,
-        settings.supabase_key,
-        options=ClientOptions(),
-    )
-
-    # Set the user's access token in the Authorization header
-    client.auth.headers["Authorization"] = f"Bearer {user_token}"
-    return client
-
-
-try:
-    __version__ = version("service-api")
-except ImportError:
-    __version__ = "development"
-
-app = FastAPI(
-    title="Service API",
-    description="An example of a ReLIFE service as an HTTP API",
-    version=__version__,
-)
-
-security = HTTPBearer()
 
 
 async def get_keycloak_token(
@@ -172,10 +140,44 @@ async def get_authenticated_user_with_roles(
     return await get_authenticated_user(credentials, settings, fetch_roles=True)
 
 
-ServiceClient = Annotated[AsyncClient, Depends(get_service_client)]
-UserClient = Annotated[AsyncClient, Depends(get_user_client)]
 CurrentUser = Annotated[dict, Depends(get_authenticated_user)]
 CurrentUserWithRoles = Annotated[dict, Depends(get_authenticated_user_with_roles)]
+
+
+async def get_service_client(settings: Settings = Depends(get_settings)) -> AsyncClient:
+    """Create a Supabase client with service role (admin) privileges.
+    This client bypasses Row Level Security and has full database access.
+    Should only be used for admin/service operations."""
+
+    client = await create_async_client(
+        settings.supabase_url,
+        settings.supabase_key,
+        options=ClientOptions(),
+    )
+
+    return client
+
+
+async def get_user_client(
+    current_user: CurrentUser,
+    settings: Settings = Depends(get_settings),
+) -> AsyncClient:
+    """Create a Supabase client with user context.
+    This client respects Row Level Security policies based on the user's token."""
+
+    client = await create_async_client(
+        settings.supabase_url,
+        settings.supabase_key,
+        options=ClientOptions(
+            headers={"Authorization": f"Bearer {current_user['token']}"}
+        ),
+    )
+
+    return client
+
+
+ServiceClient = Annotated[AsyncClient, Depends(get_service_client)]
+UserClient = Annotated[AsyncClient, Depends(get_user_client)]
 
 
 @app.get("/health")
@@ -190,6 +192,38 @@ async def whoami_with_roles(current_user: CurrentUserWithRoles):
     """Return authenticated user's information including their Keycloak roles."""
 
     return current_user
+
+
+@app.post("/report-request")
+async def report_request(supabase: UserClient, current_user: CurrentUser):
+    """Create a new report request."""
+
+    response = (
+        await supabase.table("report_requests")
+        .insert(
+            {
+                "user_id": current_user["user"].user.id,
+                "description": f"Request generated at {datetime.datetime.now().isoformat()} for testing purposes",
+            }
+        )
+        .execute()
+    )
+
+    return response.data
+
+
+@app.get("/report-request")
+async def report_request(supabase: UserClient, current_user: CurrentUser):
+    """Get all report requests for the current user."""
+
+    response = (
+        await supabase.table("report_requests")
+        .select("*")
+        .eq("user_id", current_user["user"].user.id)
+        .execute()
+    )
+
+    return response.data
 
 
 # Example protected endpoint using service role
