@@ -1,16 +1,17 @@
 import {
+  Badge,
   Button,
   Card,
   Code,
   Container,
   Group,
   Image,
+  rem,
   Stack,
   Table,
   Text,
   ThemeIcon,
   Title,
-  rem,
 } from "@mantine/core";
 import "@mantine/core/styles.css";
 import { IconBrandSupabase, IconKey, IconUser } from "@tabler/icons-react";
@@ -26,11 +27,12 @@ import {
   supabase,
 } from "./auth";
 import ReportRequests from "./components/ReportRequests";
+import UserList from "./components/UserList";
 import { useSupabaseSession, useWhoami } from "./hooks";
 
 function App() {
   const session = useSupabaseSession();
-  const { whoami, fullName } = useWhoami(session);
+  const { whoami, fullName, roles } = useWhoami(session);
 
   useEffect(() => {
     console.debug("Supabase session", session);
@@ -202,6 +204,25 @@ function App() {
                     </Text>
                   </>
                 )}
+
+                {roles && roles.length > 0 && (
+                  <>
+                    <Group position="apart">
+                      <Text c="dimmed">Roles</Text>
+                      <Group gap="xs">
+                        {roles.map((role) => (
+                          <Badge key={role.id} variant="light" color="blue">
+                            {role.name}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Group>
+                    <Text size="xs" c="dimmed" fs="italic" mt={-10}>
+                      Roles retrieved from Keycloak through the backend service
+                      API
+                    </Text>
+                  </>
+                )}
               </Stack>
 
               <Button
@@ -219,6 +240,7 @@ function App() {
         )}
 
         {session && <ReportRequests session={session} />}
+        {session && <UserList session={session} />}
       </Stack>
     </Container>
   );

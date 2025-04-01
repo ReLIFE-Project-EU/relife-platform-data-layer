@@ -8,6 +8,8 @@ from typing import Annotated
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from gotrue.types import UserResponse
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from supabase import AsyncClient, create_async_client
 from supabase.client import ClientOptions
@@ -38,6 +40,7 @@ class Settings(BaseSettings):
     supabase_key: str
     keycloak_client_id: str
     keycloak_client_secret: str
+    admin_role_name: str = "relife_admin"
 
 
 @lru_cache
@@ -92,11 +95,52 @@ async def get_keycloak_user_roles(
         return response.json()
 
 
+class KeycloakRole(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    composite: bool | None = None
+    clientRole: bool | None = None
+    containerId: str | None = None
+
+
+class AuthenticatedUser(BaseModel):
+    token: str
+    user: UserResponse
+    keycloak_roles: list[KeycloakRole] | None = None
+
+    @property
+    def has_admin_role(self) -> bool:
+        if not self.keycloak_roles:
+            return False
+
+        settings = get_settings()
+
+        return any(
+            role.name == settings.admin_role_name for role in self.keycloak_roles
+        )
+
+    @property
+    def user_id(self) -> str:
+        return self.user.user.id
+
+    @property
+    def email(self) -> str | None:
+        return self.user.user.email
+
+    def raise_if_not_admin(self):
+        if not self.has_admin_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not have admin role",
+            )
+
+
 async def get_authenticated_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     settings: Settings = Depends(get_settings),
     fetch_roles: bool = False,
-) -> dict:
+) -> AuthenticatedUser:
     """Authenticate a user using their bearer token and optionally fetch their Keycloak roles.
     Returns user info and token, with roles if requested.
     Raises HTTPException if authentication fails."""
@@ -105,7 +149,7 @@ async def get_authenticated_user(
         token = credentials.credentials
         client = await get_service_client(settings)
         user = await client.auth.get_user(token)
-        result = {"token": token, "user": user}
+        result = AuthenticatedUser(token=token, user=user)
 
         if not fetch_roles:
             return result
@@ -124,7 +168,7 @@ async def get_authenticated_user(
             keycloak_url, realm_client_token, keycloak_user_id
         )
 
-        result["keycloak_roles"] = roles
+        result.keycloak_roles = [KeycloakRole(**role) for role in roles]
 
         return result
     except Exception as e:
@@ -134,14 +178,17 @@ async def get_authenticated_user(
 async def get_authenticated_user_with_roles(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     settings: Settings = Depends(get_settings),
-) -> dict:
+) -> AuthenticatedUser:
     """Convenience wrapper to get authenticated user with their Keycloak roles included."""
 
     return await get_authenticated_user(credentials, settings, fetch_roles=True)
 
 
-CurrentUser = Annotated[dict, Depends(get_authenticated_user)]
-CurrentUserWithRoles = Annotated[dict, Depends(get_authenticated_user_with_roles)]
+AuthenticatedUser = Annotated[AuthenticatedUser, Depends(get_authenticated_user)]
+
+AuthenticatedUserWithRoles = Annotated[
+    AuthenticatedUser, Depends(get_authenticated_user_with_roles)
+]
 
 
 async def get_service_client(settings: Settings = Depends(get_settings)) -> AsyncClient:
@@ -159,7 +206,7 @@ async def get_service_client(settings: Settings = Depends(get_settings)) -> Asyn
 
 
 async def get_user_client(
-    current_user: CurrentUser,
+    current_user: AuthenticatedUser,
     settings: Settings = Depends(get_settings),
 ) -> AsyncClient:
     """Create a Supabase client with user context.
@@ -169,7 +216,7 @@ async def get_user_client(
         settings.supabase_url,
         settings.supabase_key,
         options=ClientOptions(
-            headers={"Authorization": f"Bearer {current_user['token']}"}
+            headers={"Authorization": f"Bearer {current_user.token}"}
         ),
     )
 
@@ -188,22 +235,26 @@ async def health_check():
 
 
 @app.get("/whoami")
-async def whoami_with_roles(current_user: CurrentUserWithRoles):
+async def whoami_with_roles(
+    current_user: AuthenticatedUserWithRoles,
+) -> AuthenticatedUser:
     """Return authenticated user's information including their Keycloak roles."""
 
     return current_user
 
 
 @app.post("/report-request")
-async def report_request(supabase: UserClient, current_user: CurrentUser):
-    """Create a new report request."""
+async def create_report_request(supabase: UserClient, current_user: AuthenticatedUser):
+    """Create a new report request. This endpoint respects Row Level Security."""
+
+    description = f"Request generated at {datetime.datetime.now().isoformat()} for testing purposes"
 
     response = (
         await supabase.table("report_requests")
         .insert(
             {
-                "user_id": current_user["user"].user.id,
-                "description": f"Request generated at {datetime.datetime.now().isoformat()} for testing purposes",
+                "user_id": current_user.user_id,
+                "description": description,
             }
         )
         .execute()
@@ -213,26 +264,25 @@ async def report_request(supabase: UserClient, current_user: CurrentUser):
 
 
 @app.get("/report-request")
-async def report_request(supabase: UserClient, current_user: CurrentUser):
-    """Get all report requests for the current user."""
+async def list_report_requests(supabase: UserClient, current_user: AuthenticatedUser):
+    """Get all report requests for the current user. This endpoint respects Row Level Security."""
 
     response = (
         await supabase.table("report_requests")
         .select("*")
-        .eq("user_id", current_user["user"].user.id)
+        .eq("user_id", current_user.user_id)
         .execute()
     )
 
     return response.data
 
 
-# Example protected endpoint using service role
 @app.get("/admin/users")
-async def list_all_users(supabase: ServiceClient):
+async def list_all_users(
+    supabase: ServiceClient, current_user: AuthenticatedUserWithRoles
+):
     """List all users in the system. Requires admin privileges."""
 
-    # Check the admin role here?
-    response = (
-        await supabase.table("users").select("id, email, created_at, role").execute()
-    )
+    current_user.raise_if_not_admin()
+    response = await supabase.table("private_table").select("*").execute()
     return response.data

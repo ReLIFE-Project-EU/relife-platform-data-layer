@@ -25,6 +25,7 @@ export function useWhoami(session) {
   const [whoami, setWhoami] = useState(null);
   const [error, setError] = useState(null);
   const [fullName, setFullName] = useState(null);
+  const [roles, setRoles] = useState(null);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -46,6 +47,7 @@ export function useWhoami(session) {
       .then((data) => {
         setWhoami(data);
         setFullName(data?.user?.user?.user_metadata?.full_name);
+        setRoles(data?.keycloak_roles);
         setError(null);
       })
       .catch((err) => {
@@ -53,8 +55,9 @@ export function useWhoami(session) {
         setError(err);
         setWhoami(null);
         setFullName(null);
+        setRoles(null);
       });
   }, [session?.access_token]);
 
-  return { whoami, error, fullName };
+  return { whoami, error, fullName, roles };
 }

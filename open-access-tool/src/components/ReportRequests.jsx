@@ -8,7 +8,6 @@ import {
   Table,
   Text,
   ThemeIcon,
-  Title,
   rem,
 } from "@mantine/core";
 import {
@@ -114,7 +113,6 @@ function ReportRequests({ session }) {
       <Table.Td>{request.id}</Table.Td>
       <Table.Td>{new Date(request.created_at).toLocaleString()}</Table.Td>
       <Table.Td>{request.description || "N/A"}</Table.Td>
-      <Table.Td>{request.result || "N/A"}</Table.Td>
     </Table.Tr>
   ));
 
@@ -127,9 +125,11 @@ function ReportRequests({ session }) {
           </ThemeIcon>
           <div>
             <Text size="sm" c="dimmed">
-              Data Access Example
+              Report Requests
             </Text>
-            <Title order={4}>Report Requests</Title>
+            <Text size="lg" fw={500}>
+              Data Read / Write Example
+            </Text>
           </div>
         </Group>
 
@@ -173,7 +173,6 @@ function ReportRequests({ session }) {
                 <Table.Th>ID</Table.Th>
                 <Table.Th>Created At</Table.Th>
                 <Table.Th>Description</Table.Th>
-                <Table.Th>Result</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>{rows}</Table.Tbody>
