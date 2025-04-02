@@ -55,7 +55,7 @@ tasks:
       - supabase-init
     dir: "{{.SUPABASE_GIT_DIR}}/docker"
     cmds:
-      - docker compose up -d
+      - docker compose -f docker-compose.yml -f docker-compose.s3.yml up -d
 
   supabase-clean:
     desc: Stop and remove all Supabase services and their volumes, then clean up the cloned repository
