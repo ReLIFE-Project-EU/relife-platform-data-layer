@@ -71,6 +71,12 @@ export default function UserList({ session }) {
           in Keycloak.
         </Text>
 
+        <Text c="dimmed">
+          Please note that your user must have the appropriate <i>admin</i> role
+          in Keycloak (as defined in the ReLIFE Service API Example settings) to
+          access this endpoint.
+        </Text>
+
         {error ? (
           <Alert
             icon={<IconAlertCircle size="1rem" />}
