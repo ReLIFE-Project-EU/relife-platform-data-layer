@@ -6,7 +6,7 @@ from importlib.metadata import version
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from gotrue.types import UserResponse
 from pydantic import BaseModel
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     keycloak_client_id: str
     keycloak_client_secret: str
     admin_role_name: str = "relife_admin"
+    bucket_name: str = "example_bucket"
 
 
 @lru_cache
@@ -48,6 +49,9 @@ def get_settings():
     """Get cached application settings."""
 
     return Settings()
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 async def get_keycloak_token(
@@ -136,14 +140,12 @@ class AuthenticatedUser(BaseModel):
             )
 
 
-async def get_authenticated_user(
+async def _get_authenticated_user(
+    settings: SettingsDep,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    settings: Settings = Depends(get_settings),
     fetch_roles: bool = False,
 ) -> AuthenticatedUser:
-    """Authenticate a user using their bearer token and optionally fetch their Keycloak roles.
-    Returns user info and token, with roles if requested.
-    Raises HTTPException if authentication fails."""
+    """Authenticates user and optionally fetches their Keycloak roles."""
 
     try:
         token = credentials.credentials
@@ -175,23 +177,38 @@ async def get_authenticated_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
-async def get_authenticated_user_with_roles(
+async def get_authenticated_user_without_roles(
+    settings: SettingsDep,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUser:
-    """Convenience wrapper to get authenticated user with their Keycloak roles included."""
+    """Authenticates user without fetching Keycloak roles."""
 
-    return await get_authenticated_user(credentials, settings, fetch_roles=True)
+    return await _get_authenticated_user(
+        settings=settings, credentials=credentials, fetch_roles=False
+    )
 
 
-AuthenticatedUser = Annotated[AuthenticatedUser, Depends(get_authenticated_user)]
+async def get_authenticated_user_with_roles(
+    settings: SettingsDep,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> AuthenticatedUser:
+    """Authenticates user and fetches their Keycloak roles."""
+
+    return await _get_authenticated_user(
+        settings=settings, credentials=credentials, fetch_roles=True
+    )
+
+
+AuthenticatedUser = Annotated[
+    AuthenticatedUser, Depends(get_authenticated_user_without_roles)
+]
 
 AuthenticatedUserWithRoles = Annotated[
     AuthenticatedUser, Depends(get_authenticated_user_with_roles)
 ]
 
 
-async def get_service_client(settings: Settings = Depends(get_settings)) -> AsyncClient:
+async def get_service_client(settings: SettingsDep) -> AsyncClient:
     """Create a Supabase client with service role (admin) privileges.
     This client bypasses Row Level Security and has full database access.
     Should only be used for admin/service operations."""
@@ -206,8 +223,7 @@ async def get_service_client(settings: Settings = Depends(get_settings)) -> Asyn
 
 
 async def get_user_client(
-    current_user: AuthenticatedUser,
-    settings: Settings = Depends(get_settings),
+    current_user: AuthenticatedUser, settings: SettingsDep
 ) -> AsyncClient:
     """Create a Supabase client with user context.
     This client respects Row Level Security policies based on the user's token."""
@@ -286,3 +302,94 @@ async def list_all_users(
     current_user.raise_if_not_admin()
     response = await supabase.table("private_table").select("*").execute()
     return response.data
+
+
+class FileUploadResponse(BaseModel):
+    """Response model for file upload endpoint."""
+
+    message: str
+    path: str
+    public_url: str
+
+
+class StorageFileInfo(BaseModel):
+    """Model representing information about a stored file."""
+
+    name: str
+    size: int
+    created_at: str
+    public_url: str
+
+
+@app.post("/storage", response_model=FileUploadResponse)
+async def upload_file(
+    supabase: UserClient,
+    current_user: AuthenticatedUser,
+    settings: SettingsDep,
+    file: UploadFile = File(...),
+):
+    """Upload a file to Supabase Storage. Files are stored in a user-specific folder."""
+
+    file_path = f"{current_user.user_id}/{file.filename}"
+    file_content = await file.read()
+
+    try:
+        response = await supabase.storage.from_(settings.bucket_name).upload(
+            path=file_path,
+            file=file_content,
+            file_options={"content-type": file.content_type},
+        )
+
+        _logger.debug("Uploaded file: %s", response.full_path)
+
+        public_url = await supabase.storage.from_(settings.bucket_name).get_public_url(
+            file_path
+        )
+
+        return FileUploadResponse(
+            message="File uploaded successfully",
+            path=file_path,
+            public_url=public_url,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload file: {str(e)}",
+        )
+
+
+@app.get("/storage", response_model=list[StorageFileInfo])
+async def list_files(
+    supabase: UserClient,
+    current_user: AuthenticatedUser,
+    settings: SettingsDep,
+):
+    """List all files uploaded by the current user."""
+
+    try:
+        response = await supabase.storage.from_(settings.bucket_name).list(
+            current_user.user_id
+        )
+
+        files = []
+
+        for file in response:
+            public_url = await supabase.storage.from_(
+                settings.bucket_name
+            ).get_public_url(f"{current_user.user_id}/{file['name']}")
+
+            files.append(
+                StorageFileInfo(
+                    name=file["name"],
+                    size=file["metadata"]["size"],
+                    created_at=file["created_at"],
+                    public_url=public_url,
+                )
+            )
+
+        return files
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list files: {str(e)}",
+        )
