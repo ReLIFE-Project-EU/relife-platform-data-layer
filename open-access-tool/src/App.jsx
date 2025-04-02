@@ -26,6 +26,7 @@ import {
   signInWithKeycloak,
   supabase,
 } from "./auth";
+import FileStorage from "./components/FileStorage";
 import ReportRequests from "./components/ReportRequests";
 import UserList from "./components/UserList";
 import { useSupabaseSession, useWhoami } from "./hooks";
@@ -241,6 +242,7 @@ function App() {
 
         {session && <ReportRequests session={session} />}
         {session && <UserList session={session} />}
+        {session && <FileStorage session={session} />}
       </Stack>
     </Container>
   );
