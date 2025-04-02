@@ -60,7 +60,7 @@ tasks:
   supabase-clean:
     desc: Stop and remove all Supabase services and their volumes, then clean up the cloned repository
     cmds:
-      - cmd: cd {{.SUPABASE_GIT_DIR}}/docker && docker compose down -v
+      - cmd: cd {{.SUPABASE_GIT_DIR}}/docker && docker compose -f docker-compose.yml -f docker-compose.s3.yml down -v
         ignore_error: true
       - cmd: rm -fr {{.SUPABASE_GIT_DIR}}
         ignore_error: true

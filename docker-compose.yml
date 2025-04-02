@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: ./service-api
+      dockerfile: Dockerfile
+    ports:
+      - "9090:9090"
+    environment:
+      API_PORT: 9090
+      SUPABASE_URL: ${SUPABASE_URL_REPLACED}
+      SUPABASE_KEY: ${SUPABASE_KEY}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_SERVICE_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_SERVICE_CLIENT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  frontend:
+    build:
+      context: ./open-access-tool
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_SUPABASE_CLIENT_ID}
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_HOSTNAME_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+    ports:
+      # Port 10100 is required to match the redirect URL configured in the Keycloak Supabase client
+      # We would need to update the Supabase client in Keycloak to add new valid redirect URLs otherwise
+      - "10100:80"
+    environment:
+      API_URL: http://api:9090
+    depends_on:
+      api:
+        condition: service_healthy

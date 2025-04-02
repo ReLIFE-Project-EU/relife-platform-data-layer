@@ -1,0 +1,23 @@
+{
+	# Global options
+	admin off
+	auto_https off
+}
+
+:80 {
+	# Serve static files
+	root * /usr/share/caddy
+	file_server
+
+	# Handle API requests
+	# Use handle_path instead of handle to strip the /api prefix before proxying
+	# This ensures requests to /api/foo are forwarded as /foo to the API service
+	handle_path /api/* {
+		reverse_proxy {$API_URL}
+	}
+
+	# Handle all other requests with the SPA
+	handle {
+		try_files {path} /index.html
+	}
+}
