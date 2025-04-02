@@ -36,6 +36,19 @@ tasks:
     cmds:
       - supabase migrations up --db-url {{.POSTGRES_CONNECTION_STRING_WITH_DB}}
 
+  supabase-restore:
+    desc: Restore a SQL dump file to the Supabase database
+    sources:
+      - "{{.TASKFILE_DIR}}/supabase/seeds/*.sql"
+    method: none
+    cmds:
+      - for: sources
+        cmd: >
+          docker run --rm -i
+          -v {{.ROOT_DIR}}/{{.ITEM}}:/dump.sql
+          {{.POSTGRES_IMAGE}}
+          psql {{.POSTGRES_CONNECTION_STRING_WITH_DB}} -f /dump.sql
+
   supabase-deploy:
     desc: Deploy all Supabase services using Docker Compose in detached mode
     deps:
@@ -89,6 +102,7 @@ tasks:
       - task: supabase-deploy
       - sleep {{.SLEEP_SECONDS}}
       - task: supabase-migrate
+      - task: supabase-restore
       - task: keycloak-deploy
 
   clean:

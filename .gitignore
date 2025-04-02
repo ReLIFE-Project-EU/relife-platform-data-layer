@@ -3,6 +3,7 @@
 
 ./central-services/src-*
 .env.keys
+.task
 
 ## Node
 #######

@@ -83,3 +83,5 @@ tasks:
       - task: central:clean
       - cmd: rm -f {{.ENV_KEYS_PATH}}
         ignore_error: true
+      - cmd: rm -fr {{.ROOT_DIR}}/.task
+        ignore_error: true
