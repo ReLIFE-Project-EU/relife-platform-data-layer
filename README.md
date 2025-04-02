@@ -45,6 +45,7 @@ Follow these steps to configure the realm:
 2. In the _Clients_ section, click _Import client_ and import all client configurations from the JSON files in the `central-services/keycloak-config` directory.
 3. For the `service` client, add the `realm-admin` role under the _Service accounts roles_ section.
 4. Create a new user in the realm and set their password—this user will be used to test authentication in the open access tool web applications. Make sure to enable the _Email Verified_ setting for this user.
+5. Create a new _realm role_ named `relife_admin` (this matches the default `admin_role_name` setting in the ReLIFE Service API Example). Assign this role to the user if you want them to have access to the admin-only features in the example application.
 
 For security, it's recommended to regenerate the client secrets. You can do this in the _Credentials_ section of each client's configuration. Copy the new secrets to your `.env` file to update the appropriate environment variables. For example:
 
@@ -76,3 +77,11 @@ The `open-access-tool` directory contains example code demonstrating how to:
 - Structure a React application with Supabase authentication
 - Initialize and configure the Supabase client
 - Implement user login/logout flows using Keycloak as the authentication provider
+
+The `service-api` directory contains example code demonstrating how to:
+
+- Structure a FastAPI application with Supabase integration
+- Authenticate requests using Keycloak tokens
+- Implement role-based access control using Keycloak roles
+- Access Supabase data with both user and service role clients
+- Upload and manage files using Supabase Storage
