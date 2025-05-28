@@ -1,23 +1,38 @@
 FROM node:20-alpine AS builder
 
+# Supabase Configuration
 ARG VITE_SUPABASE_URL=http://host.docker.internal:8000
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_KEYCLOAK_CLIENT_ID=supabase
+
+# Keycloak Configuration
 ARG VITE_KEYCLOAK_URL=http://host.docker.internal:8000
 ARG VITE_KEYCLOAK_REALM=relife
+ARG VITE_KEYCLOAK_CLIENT_ID=supabase
 
+# API Configuration
+ARG VITE_SERVICE_API_URL=/api
+
+# Set environment variables from build arguments
+# Supabase
 ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
 ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
+
+# Keycloak
 ENV VITE_KEYCLOAK_URL=${VITE_KEYCLOAK_URL}
 ENV VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
+ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
 
+# API
+ENV VITE_SERVICE_API_URL=${VITE_SERVICE_API_URL}
+
+# Build the application
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
+# Serve with Caddy
 FROM caddy:2-alpine
 
 RUN apk add --no-cache curl

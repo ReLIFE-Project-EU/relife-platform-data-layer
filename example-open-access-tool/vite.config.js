@@ -1,9 +1,8 @@
 import react from "@vitejs/plugin-react";
-import process from "process";
 import { defineConfig } from "vite";
 
-const serviceApiHost = process.env.VITE_SERVICE_API_HOST || "localhost";
-const serviceApiPort = parseInt(process.env.VITE_SERVICE_API_PORT) || 9090;
+const proxyApiHost = process.env.VITE_DEV_SERVICE_API_HOST || "localhost";
+const proxyApiPort = parseInt(process.env.VITE_DEV_SERVICE_API_PORT) || 9090;
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -12,7 +11,7 @@ export default defineConfig({
     port: 10100,
     proxy: {
       "/api": {
-        target: `http://${serviceApiHost}:${serviceApiPort}`,
+        target: `http://${proxyApiHost}:${proxyApiPort}`,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, ""),

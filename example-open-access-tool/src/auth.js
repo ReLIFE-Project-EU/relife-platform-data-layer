@@ -1,50 +1,42 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  API_CONFIG,
+  KEYCLOAK_CONFIG,
+  SUPABASE_CLIENT_CONFIG,
+  SUPABASE_CONFIG,
+  getKeycloakLogoutUrl,
+} from "./config";
 
-export function getSupabaseUrl() {
-  return import.meta.env.VITE_SUPABASE_URL || "http://localhost:8000";
+export { getKeycloakLogoutUrl };
+
+// Create Supabase client using centralized configuration
+export function getClient() {
+  return createClient(
+    SUPABASE_CONFIG.url,
+    SUPABASE_CONFIG.anonKey,
+    SUPABASE_CLIENT_CONFIG
+  );
 }
 
-export function getClient() {
-  const supabaseUrl = getSupabaseUrl();
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  return createClient(supabaseUrl, supabaseKey);
+// Helper functions to access configuration values
+export function getSupabaseUrl() {
+  return SUPABASE_CONFIG.url;
 }
 
 export function getServiceApiUrl() {
-  return import.meta.env.VITE_SERVICE_API_URL || "/api";
+  return API_CONFIG.url;
 }
 
 export function getKeycloakUrl() {
-  return import.meta.env.VITE_KEYCLOAK_URL;
+  return KEYCLOAK_CONFIG.url;
 }
 
 export function getKeycloakRealm() {
-  return import.meta.env.VITE_KEYCLOAK_REALM;
+  return KEYCLOAK_CONFIG.realm;
 }
 
 export function getKeycloakClientId() {
-  return import.meta.env.VITE_KEYCLOAK_CLIENT_ID;
-}
-
-export function getKeycloakLogoutUrl() {
-  const keycloakUrl = getKeycloakUrl();
-  const keycloakRealm = getKeycloakRealm();
-  const clientId = getKeycloakClientId();
-  const redirectUri = window.location.origin;
-
-  if (!keycloakUrl || !keycloakRealm || !clientId) {
-    console.warn("Keycloak URL or realm not configured.");
-    return;
-  }
-
-  const logoutUrl = new URL(
-    `${keycloakUrl}/realms/${keycloakRealm}/protocol/openid-connect/logout`
-  );
-
-  logoutUrl.searchParams.append("client_id", clientId);
-  logoutUrl.searchParams.append("post_logout_redirect_uri", redirectUri);
-
-  return logoutUrl.toString();
+  return KEYCLOAK_CONFIG.clientId;
 }
 
 export async function signInWithKeycloak({ supabase }) {
