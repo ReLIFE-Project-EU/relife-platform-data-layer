@@ -1,6 +1,44 @@
-# ReLIFE Example Stack
+# ReLIFE Data Layer
 
-An example stack demonstrating how all components of the ReLIFE platform fit together.
+This repository contains configuration and orchestration files for running Supabase and Keycloak using Docker Compose. It includes environment templates, Docker Compose files for both Supabase and Keycloak, and directories for Supabase migrations, seeds, and Keycloak client configuration JSON files. Together, these components provide database, authentication, authorization, and storage services for the ReLIFE platform, forming what is referred to as the **ReLIFE Platform Data Layer**.
+
+The following diagram illustrates how the components of ReLIFE fit together:
+
+```mermaid
+flowchart TD
+    %% Core Components
+    Keycloak("Keycloak Auth Server")
+    
+    subgraph Supabase["Supabase"]
+        PostgreSQL("PostgreSQL Database")
+        Storage("Object Storage")
+        API("REST API")
+    end
+    
+    OAT("ReLIFE Open Access Tools (Web UIs)")
+    Service("ReLIFE Services (HTTP APIs)")
+    
+    OAT -->|"1 - Authenticate"| Keycloak
+    Keycloak -->|"2 - JWT Token"| OAT
+    
+    %% Two Access Alternatives
+    OAT -->|"3a - Direct Access to Supabase"| API
+    OAT -->|"3b - ReLIFE Service API Requests"| Service
+    Service -->|"4 - Service Role Access"| API
+    
+    %% Database Access
+    API --> PostgreSQL
+    Service -->|"Direct DB Access"| PostgreSQL
+    
+    %% Storage Access
+    Service -->|"File Management"| Storage
+    
+    %% Relationships
+    Storage --- PostgreSQL
+    Keycloak -.->|"Role Verification"| Service
+```
+
+Additionally, the repository provides examples of how to develop HTTP APIs (i.e., _ReLIFE Services_) and web UIs (i.e., _ReLIFE Open Access Tools_) that integrate with the ReLIFE Platform Data Layer.
 
 ## Configuration
 
@@ -37,9 +75,12 @@ task central:deploy
 
 Now that the Keycloak service is running, you need to configure the Keycloak realm for authentication.
 
-Access the Keycloak admin console at `http://localhost:${KEYCLOAK_PORT}/admin/` (default port is 8080). Log in using the admin credentials specified in `KEYCLOAK_ADMIN_USER` and `KEYCLOAK_ADMIN_PASSWORD` (both default to `keycloak`).
+Access the Keycloak admin console at `http://localhost:${KEYCLOAK_PORT}/admin/` (the default port is 8080). Log in using the admin credentials defined in your environment variables: `KEYCLOAK_ADMIN_USER` and `KEYCLOAK_ADMIN_PASSWORD`. By default, both username and password are set to `keycloak`.
 
 Follow these steps to configure the realm:
+
+> [!NOTE]
+> These configuration steps also include the steps to support the examples available in this repository: the open access tool (i.e., frontend) and the service API (i.e., backend). Generally speaking, you only need to create a realm, the `supabase` client, and a client for each ReLIFE Service API that needs to be integrated.
 
 1. Create a new realm named `relife`.
 2. In the _Clients_ section, click _Import client_ and import all client configurations from the JSON files in the `central-services/keycloak-config` directory.
@@ -60,28 +101,20 @@ If you regenerate the secrets, you need to redeploy Supabase:
 task central:supabase-deploy
 ```
 
-## Development
+## Examples
 
-You can start both the service HTTP API and the open access tool web UI in development mode using the following commands:
-
-```console
-task dev-service-api
-```
-
-```console
-task dev-webui
-```
-
-The `open-access-tool` directory contains example code demonstrating how to:
+The `example-open-access-tool` directory contains example code demonstrating how to:
 
 - Structure a React application with Supabase authentication
 - Initialize and configure the Supabase client
 - Implement user login/logout flows using Keycloak as the authentication provider
 
-The `service-api` directory contains example code demonstrating how to:
+The `example-service-api` directory contains example code demonstrating how to:
 
 - Structure a FastAPI application with Supabase integration
 - Authenticate requests using Keycloak tokens
 - Implement role-based access control using Keycloak roles
 - Access Supabase data with both user and service role clients
 - Upload and manage files using Supabase Storage
+
+Run `task examples-compose-up` to build and run the Docker images for the example open access tool and service API.

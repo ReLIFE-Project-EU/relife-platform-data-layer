@@ -7,6 +7,7 @@ vars:
   # Base URL of the Keycloak server including realm path
   # Must be accessible from inside the Docker container running the auth service
   KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_HOSTNAME_URL}}/realms/{{.KEYCLOAK_REALM}}"
+  EXAMPLES_COMPOSE_PROJECT_NAME: relife-examples
 
 env:
   KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
@@ -47,9 +48,9 @@ tasks:
     status:
       - test -f {{.ENV_KEYS_PATH}}
 
-  dev-webui:
-    desc: Start the open access tool web application in development mode
-    dir: "{{.ROOT_DIR}}/open-access-tool"
+  dev-example-webui:
+    desc: Start the example open access tool web application in development mode
+    dir: "{{.ROOT_DIR}}/example-open-access-tool"
     env:
       VITE_SUPABASE_ANON_KEY: "{{.SUPABASE_ANON_KEY}}"
       VITE_KEYCLOAK_CLIENT_ID: "{{.KEYCLOAK_SUPABASE_CLIENT_ID}}"
@@ -61,9 +62,9 @@ tasks:
       - npm install
       - npm run dev
 
-  dev-service-api:
-    desc: Start the service API in development mode
-    dir: "{{.ROOT_DIR}}/service-api"
+  dev-example-service-api:
+    desc: Start the example service API in development mode
+    dir: "{{.ROOT_DIR}}/example-service-api"
     env:
       SUPABASE_URL: "{{.SUPABASE_URL}}"
       SUPABASE_KEY: "{{.SUPABASE_SERVICE_ROLE_KEY}}"
@@ -77,8 +78,8 @@ tasks:
         --port {{.RELIFE_SERVICE_API_PORT}}
         src/service_api/app.py
 
-  compose-up:
-    desc: Start the Compose stack for the open access tool and service API
+  examples-compose-up:
+    desc: Start the Compose stack for the open access tool and service API examples
     env:
       # When running in Docker, "localhost" refers to the container itself, not the host machine.
       # We replace "localhost" with "host.docker.internal" to allow containers to access services
@@ -92,13 +93,21 @@ tasks:
       KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOSTNAME_URL}}"
       KEYCLOAK_REALM: "{{.KEYCLOAK_REALM}}"
     cmds:
-      - docker compose up --build --wait
+      - >
+        docker compose
+        -p {{.EXAMPLES_COMPOSE_PROJECT_NAME}}
+        -f {{.ROOT_DIR}}/docker-compose-examples.yml
+        up --build --wait
 
   clean:
     desc: Stop and remove all running services and clean up associated data
     cmds:
       - task: central:clean
-      - docker compose down -v
+      - >
+        docker compose
+        -p {{.EXAMPLES_COMPOSE_PROJECT_NAME}}
+        -f {{.ROOT_DIR}}/docker-compose-examples.yml
+        down -v
       - cmd: rm -f {{.ENV_KEYS_PATH}}
         ignore_error: true
       - cmd: rm -fr {{.ROOT_DIR}}/.task

@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: ./service-api
+      context: ./example-service-api
       dockerfile: Dockerfile
     ports:
       - "9090:9090"
@@ -19,7 +19,7 @@ services:
       start_period: 10s
   frontend:
     build:
-      context: ./open-access-tool
+      context: ./example-open-access-tool
       dockerfile: Dockerfile
       args:
         VITE_SUPABASE_URL: ${SUPABASE_URL}
