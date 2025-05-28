@@ -16,26 +16,20 @@ flowchart TD
         PostgreSQL("PostgreSQL Database")
         Storage("Object Storage")
         API("REST API")
+        Auth("Supabase Auth")
     end
     
     OAT("ReLIFE Open Access Tools (Web UIs)")
     Service("ReLIFE Services (HTTP APIs)")
     
-    OAT -->|"Authenticate"| Keycloak
-    
-    %% Two Access Alternatives
+    OAT -->|"Authenticate"| Auth
+    Auth -.->|"OAuth Integration"| Keycloak
     OAT -->|"Direct Client Access"| API
     OAT -->|"ReLIFE Service API Requests"| Service
     Service -->|"Service Role Access"| API
-    
-    %% Database Access
     API --> PostgreSQL
     Service -->|"Direct DB Access"| PostgreSQL
-    
-    %% Storage Access
     Service -->|"File Management"| Storage
-    
-    %% Relationships
     Storage --- PostgreSQL
     Service -.->|"Role Verification"| Keycloak
 ```
