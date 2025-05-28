@@ -1,3 +1,6 @@
+> [!TIP]
+> **Who's this repository for?** This repository contains the configuration and deployment scripts for the ReLIFE Data Layer (i.e., the data stores and identity layer), but it also contains examples of how to integrate with these data stores. So, even if you're a ReLIFE developer who's only interested in developing a Web UI (i.e., open access tool) or HTTP API (i.e., ReLIFE Service), this repository may be helpful to you.
+
 # ReLIFE Data Layer
 
 This repository contains configuration and orchestration files for running Supabase and Keycloak using Docker Compose. It includes environment templates, Docker Compose files for both Supabase and Keycloak, and directories for Supabase migrations, seeds, and Keycloak client configuration JSON files. Together, these components provide database, authentication, authorization, and storage services for the ReLIFE platform, forming what is referred to as the **ReLIFE Platform Data Layer**.
@@ -9,7 +12,7 @@ flowchart TD
     %% Core Components
     Keycloak("Keycloak Auth Server")
     
-    subgraph Supabase["Supabase"]
+    subgraph Supabase["Supabase (Data Layer)"]
         PostgreSQL("PostgreSQL Database")
         Storage("Object Storage")
         API("REST API")
@@ -18,13 +21,12 @@ flowchart TD
     OAT("ReLIFE Open Access Tools (Web UIs)")
     Service("ReLIFE Services (HTTP APIs)")
     
-    OAT -->|"1 - Authenticate"| Keycloak
-    Keycloak -->|"2 - JWT Token"| OAT
+    OAT -->|"Authenticate"| Keycloak
     
     %% Two Access Alternatives
-    OAT -->|"3a - Direct Access to Supabase"| API
-    OAT -->|"3b - ReLIFE Service API Requests"| Service
-    Service -->|"4 - Service Role Access"| API
+    OAT -->|"Direct Client Access"| API
+    OAT -->|"ReLIFE Service API Requests"| Service
+    Service -->|"Service Role Access"| API
     
     %% Database Access
     API --> PostgreSQL
@@ -35,7 +37,7 @@ flowchart TD
     
     %% Relationships
     Storage --- PostgreSQL
-    Keycloak -.->|"Role Verification"| Service
+    Service -.->|"Role Verification"| Keycloak
 ```
 
 Additionally, the repository provides examples of how to develop HTTP APIs (i.e., _ReLIFE Services_) and web UIs (i.e., _ReLIFE Open Access Tools_) that integrate with the ReLIFE Platform Data Layer.
