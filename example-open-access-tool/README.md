@@ -21,7 +21,7 @@ This application follows a centralized configuration pattern to maximize clarity
 
 - **`src/config.js`**: Central file that contains all configuration settings grouped by functionality
 - **`src/auth.js`**: Authentication utilities that use the centralized configuration
-- **`vite.config.js`**: Development server configuration referencing the central config
+- **`vite.config.js`**: Development server configuration
 
 ### Environment Variables
 
