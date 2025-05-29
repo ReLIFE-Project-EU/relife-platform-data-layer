@@ -2,6 +2,7 @@
 > **Who's this repository for?**
 > * DevOps engineers who need to deploy, configure, and maintain the **ReLIFE Central Services** (i.e., data layer)
 > * ReLIFE developers who need examples of how to integrate **open access tools** (i.e., Web UIs) and **ReLIFE Services** (i.e., HTTP APIs) with the ReLIFE Central Services
+> * ReLIFE developers who want to deploy a local instance of the ReLIFE Central Services for development convenience.
 
 # ReLIFE Data Layer
 
