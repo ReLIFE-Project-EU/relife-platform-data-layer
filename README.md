@@ -1,30 +1,43 @@
 > [!TIP]
-> **Who's this repository for?** This repository contains the configuration and deployment scripts for the ReLIFE Data Layer (i.e., the data stores and identity layer), but it also contains examples of how to integrate with these data stores. So, even if you're a ReLIFE developer who's only interested in developing a Web UI (i.e., open access tool) or HTTP API (i.e., ReLIFE Service), this repository may be helpful to you.
+> **Who's this repository for?**
+> * DevOps engineers who need to deploy, configure, and maintain the **ReLIFE Central Services** (i.e., data layer)
+> * ReLIFE developers who need examples of how to integrate **open access tools** (i.e., Web UIs) and **ReLIFE Services** (i.e., HTTP APIs) with the ReLIFE Central Services
 
 # ReLIFE Data Layer
 
-This repository contains configuration and orchestration files for running Supabase and Keycloak using Docker Compose. It includes environment templates, Docker Compose files for both Supabase and Keycloak, and directories for Supabase migrations, seeds, and Keycloak client configuration JSON files. Together, these components provide database, authentication, authorization, and storage services for the ReLIFE platform, forming what is referred to as the **ReLIFE Platform Data Layer**.
+This repository provides the configuration and orchestration needed to run Supabase and Keycloak services using Docker Compose. It includes environment templates, Docker Compose files, and configuration directories for both services. These components work together to deliver database, authentication, authorization, and storage capabilities for the ReLIFE platform - collectively known as the **ReLIFE Central Services** or **Data Layer**.
 
 The following diagram illustrates how the components of ReLIFE fit together:
 
 ```mermaid
 flowchart TD
-    %% Core Components
-    Keycloak("Keycloak Auth Server")
-    
-    subgraph Supabase["Supabase (Data Layer)"]
-        PostgreSQL("PostgreSQL Database")
-        Storage("Object Storage")
-        API("REST API")
-        Auth("Supabase Auth")
+    %% Define styles
+    classDef dataLayer fill:#f0f8ff,stroke:#1e90ff,stroke-width:2px;
+    classDef supabase fill:#e6ffe6,stroke:#2e8b57,stroke-width:2px;
+    classDef examples fill:#fff0f5,stroke:#ff69b4,stroke-width:2px;
+
+    %% Subgraph: Data Layer
+    subgraph DataLayer["Data layer"]
+        Keycloak("Keycloak Auth Server")
+        
+        subgraph Supabase["Supabase"]
+            PostgreSQL("PostgreSQL Database")
+            Storage("Object Storage")
+            API("REST API")
+            Auth("Supabase Auth")
+        end
     end
-    
-    OAT("ReLIFE Open Access Tools (Web UIs)")
-    Service("ReLIFE Services (HTTP APIs)")
-    
+
+    %% Subgraph: Examples
+    subgraph Examples["Examples"]
+        OAT("ReLIFE Open Access Tools (Web UIs)")
+        Service("ReLIFE Services (HTTP APIs)")
+    end
+
+    %% Connections
     OAT -->|"Authenticate"| Auth
     Auth -.->|"OAuth Integration"| Keycloak
-    OAT -->|"Direct Client Access"| API
+    OAT -->|"Client Role Access"| API
     OAT -->|"ReLIFE Service API Requests"| Service
     Service -->|"Service Role Access"| API
     API --> PostgreSQL
@@ -32,6 +45,11 @@ flowchart TD
     Service -->|"File Management"| Storage
     Storage --- PostgreSQL
     Service -.->|"Role Verification"| Keycloak
+
+    %% Apply styles to nodes
+    class Keycloak dataLayer;
+    class PostgreSQL,Storage,API,Auth supabase;
+    class OAT,Service examples;
 ```
 
 Additionally, the repository provides examples of how to develop HTTP APIs (i.e., _ReLIFE Services_) and web UIs (i.e., _ReLIFE Open Access Tools_) that integrate with the ReLIFE Platform Data Layer.
