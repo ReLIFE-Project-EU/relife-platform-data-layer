@@ -40,6 +40,19 @@ All configuration is driven by environment variables with sensible defaults:
 | **API (Development)** | `VITE_DEV_SERVICE_API_HOST` | Host for the service API to be proxied in development | `localhost`             |
 |                       | `VITE_DEV_SERVICE_API_PORT` | Port for the service API to be proxied in development | `9090`                  |
 
+### API URL Configuration
+
+There are two different environment variables used for API configuration:
+
+1. **`VITE_SERVICE_API_URL`**: Used by the frontend application (React) to determine the API endpoint path. This is typically set to `/api` and is used in the frontend code to make API requests.
+
+2. **`API_URL`**: Used by the Caddy server in production to determine where to proxy API requests. This points to the actual API service location (e.g., `http://api:9090`). This variable is only used in the Dockerfile and Caddyfile and is not exposed to the frontend code.
+
+The workflow is:
+
+- Frontend makes requests to `VITE_SERVICE_API_URL` (e.g., `/api/users`)
+- Caddy intercepts these requests and forwards them to `API_URL` (e.g., `http://api:9090/users`)
+
 ## Local Development
 
 To start the development server:

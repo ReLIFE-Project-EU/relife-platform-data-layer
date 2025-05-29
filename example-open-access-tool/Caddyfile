@@ -13,6 +13,8 @@
 	# Use handle_path instead of handle to strip the /api prefix before proxying
 	# This ensures requests to /api/foo are forwarded as /foo to the API service
 	handle_path /api/* {
+		# API_URL is set in the Dockerfile and points to the actual API service
+		# (e.g., http://api:9090 in a Docker environment)
 		reverse_proxy {$API_URL}
 	}
 

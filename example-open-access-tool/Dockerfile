@@ -10,6 +10,8 @@ ARG VITE_KEYCLOAK_REALM=relife
 ARG VITE_KEYCLOAK_CLIENT_ID=supabase
 
 # API Configuration
+# VITE_SERVICE_API_URL is used by the frontend to determine the API endpoint path
+# This is typically "/api" which is then handled by Caddy's reverse proxy
 ARG VITE_SERVICE_API_URL=/api
 
 # Set environment variables from build arguments
@@ -39,5 +41,7 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/dist /usr/share/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 EXPOSE 80
+# API_URL is used by Caddy to determine where to proxy the API requests
+# This points to the actual API service location
 ENV API_URL=http://api:9090
-CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"] 
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
