@@ -1,0 +1,43 @@
+version: "3"
+
+vars:
+  BACKUP_NETWORK_NAME:
+    sh: "{{.ROOT_DIR}}/central-services/backup/scripts/get-network-name.sh"
+
+tasks:
+  deploy:
+    desc: Deploy backup service using Docker Compose
+    dir: "{{.TASKFILE_DIR}}"
+    env:
+      BACKUP_NETWORK_NAME: "{{.BACKUP_NETWORK_NAME}}"
+    cmds:
+      - echo Connecting backup to network {{.BACKUP_NETWORK_NAME}}
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml up -d --build --wait
+
+  clean:
+    desc: Stop and remove the backup service and its associated volumes
+    dir: "{{.TASKFILE_DIR}}"
+    env:
+      BACKUP_NETWORK_NAME: "{{.BACKUP_NETWORK_NAME}}"
+    cmds:
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml down -v
+
+  backup:
+    desc: Run a manual backup of all databases
+    cmds:
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh logical
+
+  backup-physical:
+    desc: Run a manual physical backup of the database cluster
+    cmds:
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh physical
+
+  list:
+    desc: List all available backups
+    cmds:
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh list
+
+  cleanup:
+    desc: Clean up old backups
+    cmds:
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh cleanup

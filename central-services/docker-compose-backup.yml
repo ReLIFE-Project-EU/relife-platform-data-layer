@@ -1,0 +1,39 @@
+services:
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: relife-backup
+    restart: unless-stopped
+    environment:
+      BACKUP_LOG_LEVEL: ${BACKUP_LOG_LEVEL:-INFO}
+      PGUSER: ${SUPABASE_POSTGRES_USER}
+      DB_HOST: supabase-db
+      DB_SUPERUSER: postgres
+      DB_SUPERUSER_DATABASE: ${SUPABASE_POSTGRES_DB}
+      DB_SUPERUSER_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_DIRECTORY: ${BACKUP_DIRECTORY:-/var/lib/backups}
+    volumes:
+      - backup_data:${BACKUP_DIRECTORY:-/var/lib/backups}
+      - ./backup/scripts:/opt/backup/scripts
+    networks:
+      - backup-network
+  backup-cron:
+    image: mcuadros/ofelia:0.3
+    container_name: relife-backup-cron
+    restart: unless-stopped
+    command: daemon --config=/etc/ofelia/config.ini
+    depends_on:
+      - backup
+    volumes:
+      - ./backup/ofelia-config.ini:/etc/ofelia/config.ini:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - backup-network
+volumes:
+  backup_data: {}
+networks:
+  backup-network:
+    name: ${BACKUP_NETWORK_NAME:-relife-network}
+    external: true

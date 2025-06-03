@@ -1,5 +1,8 @@
 version: "3"
 
+includes:
+  backup: ./Taskfile.backup.yml
+
 vars:
   SUPABASE_GIT_URL: https://github.com/supabase/supabase
   SUPABASE_GIT_TREEISH: v1.24.09
