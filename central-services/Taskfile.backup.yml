@@ -15,12 +15,12 @@ tasks:
       - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml up -d --build --wait
 
   clean:
-    desc: Stop and remove the backup service and its associated volumes
+    desc: Stop and remove the backup service
     dir: "{{.TASKFILE_DIR}}"
     env:
       BACKUP_NETWORK_NAME: "{{.BACKUP_NETWORK_NAME}}"
     cmds:
-      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml down -v
+      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml down
 
   backup:
     desc: Run a manual backup of all databases

@@ -16,9 +16,6 @@ readonly BACKUP_HOME="/var/lib/backups"
 readonly BACKUP_LOG_DIR="/var/log/backups"
 
 # Default environment variables
-readonly DEFAULT_LOG_LEVEL="INFO"
-readonly DEFAULT_BACKUP_DIRECTORY="/var/lib/backups"
-readonly DEFAULT_RETENTION_DAYS="7"
 readonly DEFAULT_DB_PORT="5432"
 readonly DEFAULT_DB_DATABASE="postgres"
 readonly DEFAULT_DB_SUPERUSER="postgres"
@@ -87,15 +84,7 @@ set_ownership_and_permissions() {
 # Set up environment variables with defaults
 setup_environment() {
     log_info "Setting up environment variables"
-
-    export BACKUP_LOG_LEVEL="${BACKUP_LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
-    export BACKUP_DIRECTORY="${BACKUP_DIRECTORY:-$DEFAULT_BACKUP_DIRECTORY}"
-    export BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-$DEFAULT_RETENTION_DAYS}"
-
     log_info "Environment configured:"
-    log_info "  Log Level: $BACKUP_LOG_LEVEL"
-    log_info "  Backup Directory: $BACKUP_DIRECTORY"
-    log_info "  Retention Days: $BACKUP_RETENTION_DAYS"
     log_info "  PGPASSFILE: ${PGPASSFILE:-'(not set yet)'}"
 }
 
@@ -135,12 +124,12 @@ setup_directory_permissions() {
     log_info "Setting up directory permissions"
 
     # Create backup directory if it doesn't exist
-    if [[ ! -d "$BACKUP_DIRECTORY" ]]; then
-        mkdir -p "$BACKUP_DIRECTORY"
+    if [[ ! -d "$BACKUP_HOME" ]]; then
+        mkdir -p "$BACKUP_HOME"
     fi
 
     # Set proper ownership and permissions
-    set_ownership_and_permissions "$BACKUP_DIRECTORY" "$BACKUP_USER:$BACKUP_GROUP" "755"
+    set_ownership_and_permissions "$BACKUP_HOME" "$BACKUP_USER:$BACKUP_GROUP" "755"
     set_ownership_and_permissions "$BACKUP_LOG_DIR" "$BACKUP_USER:$BACKUP_GROUP" "755"
 }
 
