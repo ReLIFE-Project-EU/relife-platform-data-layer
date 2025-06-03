@@ -29,6 +29,10 @@ readonly DEFAULT_DB_SUPERUSER="postgres"
 readonly DEFAULT_RETENTION_DAYS="7"
 readonly DEFAULT_BACKUP_TYPE="logical"
 
+# Validation constants
+readonly MIN_BACKUP_SIZE_BYTES=1024
+readonly MIN_PHYSICAL_BACKUP_SIZE_BYTES=$((100 * 1024))
+
 # =============================================================================
 # LOGGING FUNCTIONS
 # =============================================================================
@@ -54,6 +58,61 @@ log_error() {
 # UTILITY FUNCTIONS
 # =============================================================================
 
+# Get file size in a cross-platform way
+get_file_size() {
+    local file="$1"
+    if [[ -f "$file" ]]; then
+        # Try Linux stat first, then macOS/BSD stat
+        stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo "0"
+    else
+        echo "0"
+    fi
+}
+
+# Get human-readable file size
+get_human_readable_size() {
+    local path="$1"
+    du -h "$path" 2>/dev/null | cut -f1 || echo "unknown"
+}
+
+# Format file date for display
+get_file_date() {
+    local file="$1"
+    # Try GNU date format first, then BSD format
+    stat -c "%y" "$file" 2>/dev/null | cut -d' ' -f1-2 ||
+        stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$file" 2>/dev/null ||
+        echo "unknown"
+}
+
+# Build backup filename/path
+build_backup_path() {
+    local backup_type="$1"
+    local database="${2:-}"
+    local backup_dir="${BACKUP_DIRECTORY:-$BACKUP_HOME}/$backup_type"
+
+    case "$backup_type" in
+    logical)
+        if [[ -n "$database" ]]; then
+            echo "$backup_dir/${database}_${TIMESTAMP}.sql.gz"
+        else
+            echo "$backup_dir/all_databases_${TIMESTAMP}.sql.gz"
+        fi
+        ;;
+    physical)
+        echo "$backup_dir/basebackup_${TIMESTAMP}"
+        ;;
+    *)
+        log_error "Unknown backup type: $backup_type"
+        return 1
+        ;;
+    esac
+}
+
+# Get database connection parameters
+get_db_params() {
+    echo "${DB_HOST}" "${DB_PORT:-$DEFAULT_DB_PORT}" "${DB_SUPERUSER:-$DEFAULT_DB_SUPERUSER}" "${DB_DATABASE:-$DEFAULT_DB_DATABASE}"
+}
+
 # Show usage information
 show_usage() {
     cat <<EOF
@@ -77,6 +136,7 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
     DB_HOST                Database host (required)
     DB_PORT                Database port (default: $DEFAULT_DB_PORT)
+    DB_DATABASE            Database name for connection test (default: $DEFAULT_DB_DATABASE)
     DB_SUPERUSER          Database superuser (default: $DEFAULT_DB_SUPERUSER)
     DB_SUPERUSER_PASSWORD Database password (required, or use .pgpass)
     BACKUP_DIRECTORY      Backup storage directory (default: $BACKUP_HOME)
@@ -119,18 +179,13 @@ check_environment() {
 
 # Test database connection
 test_connection() {
-    local db_host="${DB_HOST}"
-    local db_port="${DB_PORT:-$DEFAULT_DB_PORT}"
-    local db_user="${DB_SUPERUSER:-$DEFAULT_DB_SUPERUSER}"
-    local db_name="${DB_SUPERUSER_DATABASE:-$DEFAULT_DB_DATABASE}"
+    read -r db_host db_port db_user db_name <<<"$(get_db_params)"
 
     log_info "Testing database connection to $db_host:$db_port"
 
     # Capture error output for debugging
     local error_output
-    error_output=$(psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1;" 2>&1 >/dev/null)
-
-    if [[ $? -ne 0 ]]; then
+    if ! error_output=$(psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1;" 2>&1 >/dev/null); then
         log_error "Cannot connect to database at $db_host:$db_port"
         log_error "Please verify credentials and network connectivity"
         if [[ -n "$error_output" ]]; then
@@ -157,109 +212,97 @@ setup_backup_directories() {
     log_info "Backup directories ready at $backup_dir"
 }
 
-# Perform logical backup using pg_dump
+# =============================================================================
+# BACKUP FUNCTIONS
+# =============================================================================
+
+# Execute backup command with common error handling
+execute_backup_command() {
+    local backup_file="$1"
+    local backup_command="$2"
+    local backup_description="$3"
+
+    log_info "Creating $backup_description"
+
+    if eval "$backup_command"; then
+        log_info "Backup completed: $backup_file"
+        log_info "Backup size: $(get_human_readable_size "$backup_file")"
+        return 0
+    else
+        log_error "Backup failed: $backup_description"
+        rm -rf "$backup_file" 2>/dev/null || true
+        return 1
+    fi
+}
+
+# Perform logical backup using pg_dump/pg_dumpall
 logical_backup() {
     local database="${1:-}"
     local validate_flag="${2:-false}"
-    local db_host="${DB_HOST}"
-    local db_port="${DB_PORT:-$DEFAULT_DB_PORT}"
-    local db_user="${DB_SUPERUSER:-$DEFAULT_DB_SUPERUSER}"
-    local backup_dir="${BACKUP_DIRECTORY:-$BACKUP_HOME}/logical"
-    local backup_file=""
+    read -r db_host db_port db_user _ <<<"$(get_db_params)"
 
+    local backup_file
+    backup_file=$(build_backup_path "logical" "$database")
+
+    local backup_command backup_description
     if [[ -n "$database" ]]; then
-        # Backup specific database
-        backup_file="$backup_dir/${database}_${TIMESTAMP}.sql.gz"
-        log_info "Creating logical backup of database '$database'"
-
-        if pg_dump -h "$db_host" -p "$db_port" -U "$db_user" -d "$database" \
-            --verbose --no-password --format=plain |
-            gzip >"$backup_file"; then
-            log_info "Logical backup completed: $backup_file"
-            log_info "Backup size: $(du -h "$backup_file" | cut -f1)"
-
-            # Validate the backup if requested
-            if [[ "$validate_flag" == "true" ]]; then
-                if [[ "${SKIP_BACKUP_VALIDATION:-false}" == "true" ]]; then
-                    log_info "Backup validation skipped (SKIP_BACKUP_VALIDATION=true)"
-                elif validate_backup "logical" "$backup_file"; then
-                    log_info "Backup validation successful"
-                else
-                    log_error "Backup validation failed"
-                    return 1
-                fi
-            fi
-        else
-            log_error "Logical backup failed for database '$database'"
-            rm -f "$backup_file"
-            return 1
-        fi
+        backup_command="pg_dump -h '$db_host' -p '$db_port' -U '$db_user' -d '$database' --verbose --no-password --format=plain | gzip > '$backup_file'"
+        backup_description="logical backup of database '$database'"
     else
-        # Backup all databases
-        backup_file="$backup_dir/all_databases_${TIMESTAMP}.sql.gz"
-        log_info "Creating logical backup of all databases"
-
-        if pg_dumpall -h "$db_host" -p "$db_port" -U "$db_user" \
-            --verbose --no-password |
-            gzip >"$backup_file"; then
-            log_info "Logical backup completed: $backup_file"
-            log_info "Backup size: $(du -h "$backup_file" | cut -f1)"
-
-            # Validate the backup if requested
-            if [[ "$validate_flag" == "true" ]]; then
-                if [[ "${SKIP_BACKUP_VALIDATION:-false}" == "true" ]]; then
-                    log_info "Backup validation skipped (SKIP_BACKUP_VALIDATION=true)"
-                elif validate_backup "logical" "$backup_file"; then
-                    log_info "Backup validation successful"
-                else
-                    log_error "Backup validation failed"
-                    return 1
-                fi
-            fi
-        else
-            log_error "Logical backup failed for all databases"
-            rm -f "$backup_file"
-            return 1
-        fi
+        backup_command="pg_dumpall -h '$db_host' -p '$db_port' -U '$db_user' --verbose --no-password | gzip > '$backup_file'"
+        backup_description="logical backup of all databases"
     fi
 
-    return 0
+    if execute_backup_command "$backup_file" "$backup_command" "$backup_description"; then
+        if [[ "$validate_flag" == "true" ]]; then
+            validate_backup_if_requested "logical" "$backup_file" "$validate_flag"
+            return $?
+        fi
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Perform physical backup using pg_basebackup
 physical_backup() {
     local validate_flag="${1:-false}"
-    local db_host="${DB_HOST}"
-    local db_port="${DB_PORT:-$DEFAULT_DB_PORT}"
-    local db_user="${DB_SUPERUSER:-$DEFAULT_DB_SUPERUSER}"
-    local backup_dir="${BACKUP_DIRECTORY:-$BACKUP_HOME}/physical"
-    local backup_path="$backup_dir/basebackup_${TIMESTAMP}"
+    read -r db_host db_port db_user _ <<<"$(get_db_params)"
 
-    log_info "Creating physical backup (base backup)"
+    local backup_path
+    backup_path=$(build_backup_path "physical")
 
-    if pg_basebackup -h "$db_host" -p "$db_port" -U "$db_user" \
-        -D "$backup_path" --format=tar --gzip \
-        --progress --verbose --no-password; then
-        log_info "Physical backup completed: $backup_path"
-        log_info "Backup size: $(du -sh "$backup_path" | cut -f1)"
+    local backup_command="pg_basebackup -h '$db_host' -p '$db_port' -U '$db_user' -D '$backup_path' --format=tar --gzip --progress --verbose --no-password"
 
-        # Validate the backup if requested
+    if execute_backup_command "$backup_path" "$backup_command" "physical backup (base backup)"; then
         if [[ "$validate_flag" == "true" ]]; then
-            if [[ "${SKIP_BACKUP_VALIDATION:-false}" == "true" ]]; then
-                log_info "Backup validation skipped (SKIP_BACKUP_VALIDATION=true)"
-            elif validate_backup "physical" "$backup_path"; then
-                log_info "Backup validation successful"
-            else
-                log_error "Backup validation failed"
-                return 1
-            fi
+            validate_backup_if_requested "physical" "$backup_path" "$validate_flag"
+            return $?
         fi
+        return 0
     else
-        log_error "Physical backup failed"
-        rm -rf "$backup_path"
         return 1
     fi
+}
 
+# Validate backup if requested
+validate_backup_if_requested() {
+    local backup_type="$1"
+    local backup_path="$2"
+    local validate_flag="$3"
+
+    if [[ "$validate_flag" == "true" ]]; then
+        if [[ "${SKIP_BACKUP_VALIDATION:-false}" == "true" ]]; then
+            log_info "Backup validation skipped (SKIP_BACKUP_VALIDATION=true)"
+            return 0
+        elif validate_backup "$backup_type" "$backup_path"; then
+            log_info "Backup validation successful"
+            return 0
+        else
+            log_error "Backup validation failed"
+            return 1
+        fi
+    fi
     return 0
 }
 
@@ -272,18 +315,24 @@ cleanup_old_backups() {
 
     # Clean logical backups
     if [[ -d "$backup_dir/logical" ]]; then
-        local logical_count
-        logical_count=$(find "$backup_dir/logical" -name "*.sql.gz" -mtime +$retention_days -delete -print | wc -l)
-        if [[ $logical_count -gt 0 ]]; then
+        local logical_files
+        logical_files=$(find "$backup_dir/logical" -name "*.sql.gz" -mtime +$retention_days 2>/dev/null || true)
+        if [[ -n "$logical_files" ]]; then
+            local logical_count
+            logical_count=$(echo "$logical_files" | wc -l)
+            echo "$logical_files" | xargs rm -f
             log_info "Removed $logical_count old logical backup(s)"
         fi
     fi
 
     # Clean physical backups
     if [[ -d "$backup_dir/physical" ]]; then
-        local physical_count
-        physical_count=$(find "$backup_dir/physical" -name "basebackup_*" -mtime +$retention_days -exec rm -rf {} \; -print | wc -l)
-        if [[ $physical_count -gt 0 ]]; then
+        local physical_dirs
+        physical_dirs=$(find "$backup_dir/physical" -name "basebackup_*" -type d -mtime +$retention_days 2>/dev/null || true)
+        if [[ -n "$physical_dirs" ]]; then
+            local physical_count
+            physical_count=$(echo "$physical_dirs" | wc -l)
+            echo "$physical_dirs" | xargs rm -rf
             log_info "Removed $physical_count old physical backup(s)"
         fi
     fi
@@ -313,9 +362,10 @@ validate_logical_backup() {
 
     # Wait for file to stabilize (ensure it's completely written)
     log_info "Checking file stability..."
-    local initial_size=$(stat -c%s "$backup_file" 2>/dev/null || stat -f%z "$backup_file" 2>/dev/null)
+    local initial_size final_size
+    initial_size=$(get_file_size "$backup_file")
     sleep 2
-    local final_size=$(stat -c%s "$backup_file" 2>/dev/null || stat -f%z "$backup_file" 2>/dev/null)
+    final_size=$(get_file_size "$backup_file")
 
     if [[ "$initial_size" != "$final_size" ]]; then
         log_warn "Backup file size changed during validation check - file may still be writing"
@@ -332,29 +382,29 @@ validate_logical_backup() {
         log_info "Gzip integrity check passed"
     fi
 
-    # Check file size (minimum threshold - 1KB for small DBs, but should be reasonable)
-    local file_size=$(stat -f%z "$backup_file" 2>/dev/null || stat -c%s "$backup_file" 2>/dev/null)
-    if [[ $file_size -lt 1024 ]]; then
+    # Check file size (minimum threshold)
+    local file_size
+    file_size=$(get_file_size "$backup_file")
+    if [[ $file_size -lt $MIN_BACKUP_SIZE_BYTES ]]; then
         log_error "Backup file suspiciously small: ${file_size} bytes"
         ((validation_errors++))
     else
-        log_info "Backup file size acceptable: $(du -h "$backup_file" | cut -f1)"
+        log_info "Backup file size acceptable: $(get_human_readable_size "$backup_file")"
     fi
 
-    # Simplified content validation - just check if we can read the first few bytes
+    # Simplified content validation
     log_info "Performing basic content validation..."
-    if zcat "$backup_file" 2>/dev/null | head -1 >/dev/null 2>&1; then
+    if [[ -n "$(gunzip -c "$backup_file" 2>/dev/null | head -1)" ]]; then
         log_info "Backup file can be read and decompressed successfully"
 
-        # Try a simple grep for PostgreSQL indicators without extracting to temp file
-        if zcat "$backup_file" 2>/dev/null | head -50 | grep -q -i "postgresql\|pg_dump\|database" 2>/dev/null; then
+        # Try a simple grep for PostgreSQL indicators
+        if [[ -n "$(gunzip -c "$backup_file" 2>/dev/null | head -50 | grep -i "postgresql\|pg_dump\|database" 2>/dev/null)" ]]; then
             log_info "Found PostgreSQL database content indicators"
         else
             log_info "Basic content check completed (no specific indicators found, but file is readable)"
         fi
     else
         log_warn "Could not perform basic content validation, but gzip integrity passed"
-        # Don't increment errors since gzip test already passed
     fi
 
     if [[ $validation_errors -eq 0 ]]; then
@@ -402,13 +452,13 @@ validate_physical_backup() {
         ((validation_errors++))
     fi
 
-    # Check for main data files (more flexible check)
+    # Check for main data files
     local has_data_files=false
 
     # Check for base.tar.gz or base directory
     if [[ -f "$backup_path/base.tar.gz" ]]; then
         log_info "Found base.tar.gz"
-        # Test tar file integrity if possible
+        # Test tar file integrity
         if tar -tzf "$backup_path/base.tar.gz" >/dev/null 2>&1; then
             log_info "base.tar.gz integrity check passed"
         else
@@ -422,7 +472,8 @@ validate_physical_backup() {
     fi
 
     # Check for other compressed files that might contain data
-    local compressed_files_count=$(find "$backup_path" -name "*.tar.gz" 2>/dev/null | wc -l)
+    local compressed_files_count
+    compressed_files_count=$(find "$backup_path" -name "*.tar.gz" 2>/dev/null | wc -l)
     if [[ $compressed_files_count -gt 0 ]]; then
         log_info "Found $compressed_files_count compressed archive files"
         has_data_files=true
@@ -433,15 +484,14 @@ validate_physical_backup() {
         ((validation_errors++))
     fi
 
-    # Check overall backup size (should be reasonable)
-    local backup_size=$(du -sb "$backup_path" 2>/dev/null | cut -f1)
-    if [[ -n "$backup_size" ]]; then
-        if [[ $backup_size -lt $((100 * 1024)) ]]; then # Less than 100KB
-            log_warn "Physical backup suspiciously small: $(du -sh "$backup_path" | cut -f1)"
-            ((validation_errors++))
-        else
-            log_info "Backup size appears reasonable: $(du -sh "$backup_path" | cut -f1)"
-        fi
+    # Check overall backup size
+    local backup_size
+    backup_size=$(du -sb "$backup_path" 2>/dev/null | cut -f1)
+    if [[ -n "$backup_size" ]] && [[ $backup_size -lt $MIN_PHYSICAL_BACKUP_SIZE_BYTES ]]; then
+        log_warn "Physical backup suspiciously small: $(get_human_readable_size "$backup_path")"
+        ((validation_errors++))
+    else
+        log_info "Backup size appears reasonable: $(get_human_readable_size "$backup_path")"
     fi
 
     if [[ $validation_errors -eq 0 ]]; then
@@ -459,36 +509,51 @@ validate_backup() {
     local backup_path="$2"
 
     log_info "Starting backup validation for $backup_type backup"
-    local validation_start_time=$(date +%s)
+    local validation_start_time validation_end_time validation_duration
+    validation_start_time=$(date +%s)
 
+    local result=0
     case "$backup_type" in
     logical)
         if validate_logical_backup "$backup_path"; then
             log_info "Logical backup validation successful"
-            return 0
         else
             log_error "Logical backup validation failed"
-            return 1
+            result=1
         fi
         ;;
     physical)
         if validate_physical_backup "$backup_path"; then
             log_info "Physical backup validation successful"
-            return 0
         else
             log_error "Physical backup validation failed"
-            return 1
+            result=1
         fi
         ;;
     *)
         log_error "Unknown backup type for validation: $backup_type"
-        return 1
+        result=1
         ;;
     esac
 
-    local validation_end_time=$(date +%s)
-    local validation_duration=$((validation_end_time - validation_start_time))
+    validation_end_time=$(date +%s)
+    validation_duration=$((validation_end_time - validation_start_time))
     log_info "Backup validation completed in ${validation_duration} seconds"
+
+    return $result
+}
+
+# Determine backup type from file extension/path
+detect_backup_type() {
+    local backup_path="$1"
+
+    if [[ "$backup_path" == *.sql.gz ]] || [[ "$backup_path" == *.sql ]]; then
+        echo "logical"
+    elif [[ -d "$backup_path" ]] && [[ "$(basename "$backup_path")" == basebackup_* ]]; then
+        echo "physical"
+    else
+        return 1
+    fi
 }
 
 # List available backups
@@ -500,7 +565,14 @@ list_backups() {
 
     if [[ -d "$backup_dir/logical" ]] && [[ -n "$(ls -A "$backup_dir/logical" 2>/dev/null)" ]]; then
         echo "Logical Backups:"
-        ls -lh "$backup_dir/logical"/*.sql.gz 2>/dev/null | awk '{print "  "$9" ("$5", "$6" "$7" "$8")"}'
+        for file in "$backup_dir/logical"/*.sql.gz; do
+            if [[ -f "$file" ]]; then
+                local size date
+                size=$(get_human_readable_size "$file")
+                date=$(get_file_date "$file")
+                echo "  $(basename "$file") ($size, $date)"
+            fi
+        done
         echo
     fi
 
@@ -508,15 +580,16 @@ list_backups() {
         echo "Physical Backups:"
         for dir in "$backup_dir/physical"/basebackup_*; do
             if [[ -d "$dir" ]]; then
-                local size=$(du -sh "$dir" | cut -f1)
-                local date=$(stat -c %y "$dir" | cut -d' ' -f1-2)
+                local size date
+                size=$(get_human_readable_size "$dir")
+                date=$(get_file_date "$dir")
                 echo "  $(basename "$dir") ($size, $date)"
             fi
         done
         echo
     fi
 
-    echo "Total backup directory size: $(du -sh "$backup_dir" | cut -f1)"
+    echo "Total backup directory size: $(get_human_readable_size "$backup_dir")"
 }
 
 # =============================================================================
@@ -591,23 +664,18 @@ main() {
     if [[ -n "$validate_path" ]]; then
         setup_backup_directories
 
-        # Determine backup type from file extension/path
-        local backup_type_to_validate=""
-        if [[ "$validate_path" == *.sql.gz ]] || [[ "$validate_path" == *.sql ]]; then
-            backup_type_to_validate="logical"
-        elif [[ -d "$validate_path" ]] && [[ "$(basename "$validate_path")" == basebackup_* ]]; then
-            backup_type_to_validate="physical"
+        local backup_type_to_validate
+        if backup_type_to_validate=$(detect_backup_type "$validate_path"); then
+            if validate_backup "$backup_type_to_validate" "$validate_path"; then
+                log_info "Backup validation completed successfully"
+                exit 0
+            else
+                log_error "Backup validation failed"
+                exit 1
+            fi
         else
             log_error "Cannot determine backup type for: $validate_path"
             log_error "Logical backups should be .sql.gz files, physical backups should be basebackup_* directories"
-            exit 1
-        fi
-
-        if validate_backup "$backup_type_to_validate" "$validate_path"; then
-            log_info "Backup validation completed successfully"
-            exit 0
-        else
-            log_error "Backup validation failed"
             exit 1
         fi
     fi
@@ -636,7 +704,8 @@ main() {
 
     # Perform backup
     log_info "Starting $backup_type backup process"
-    local backup_start_time=$(date +%s)
+    local backup_start_time backup_end_time backup_duration
+    backup_start_time=$(date +%s)
 
     case "$backup_type" in
     logical)
@@ -660,8 +729,8 @@ main() {
         ;;
     esac
 
-    local backup_end_time=$(date +%s)
-    local backup_duration=$((backup_end_time - backup_start_time))
+    backup_end_time=$(date +%s)
+    backup_duration=$((backup_end_time - backup_start_time))
 
     log_info "Backup process completed in ${backup_duration} seconds"
 }
