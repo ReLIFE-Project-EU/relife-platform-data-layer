@@ -7,25 +7,26 @@ services:
       - ${KEYCLOAK_PORT}:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: [ start-dev ]
+    command:
+      - start-dev
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_PROXY: edge
-      KC_LOG_CONSOLE_COLOR: "true"
-      KC_LOG_LEVEL: debug
+      # Keycloak admin credentials
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      # Postgres database credentials
       KC_DB: postgres
       KC_DB_USERNAME: ${SUPABASE_POSTGRES_USER}
       KC_DB_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD}
       KC_DB_URL_PORT: ${SUPABASE_POSTGRES_PORT}
       KC_DB_URL_DATABASE: ${KEYCLOAK_POSTGRES_DBNAME}
       KC_DB_URL_HOST: host.docker.internal
-      KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      PROXY_ADDRESS_FORWARDING: "true"
-      # It is crucial to set the frontend URL for Keycloak to avoid errors
-      # when the token introspection endpoint is called using a different
-      # hostname from the one originally used to issue the token
-      # https://stackoverflow.com/a/62310113
-      KC_HOSTNAME_URL: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:${KEYCLOAK_PORT}}
+      # Logging configuration
+      KC_LOG_CONSOLE_COLOR: "true"
+      KC_LOG_LEVEL: debug
+      # Keycloak proxy configuration
+      KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
+      KC_HOSTNAME_DEBUG: true
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: true
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME_URL}
+      KC_HOSTNAME_ADMIN: ${KEYCLOAK_HOSTNAME_URL}
+      KC_HTTP_ENABLED: true

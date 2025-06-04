@@ -7,9 +7,16 @@ vars:
   SUPABASE_GIT_URL: https://github.com/supabase/supabase
   SUPABASE_GIT_TREEISH: v1.24.09
   SUPABASE_GIT_DIR: "{{.TASKFILE_DIR}}/src-supabase"
+  MAIN_IP_ADDRESS:
+    sh: ip route get 1.2.3.4 | awk '{print $7}' | tr -d '\n' | xargs
   POSTGRES_IMAGE: postgres:16
-  POSTGRES_CONNECTION_STRING: "postgres://{{.SUPABASE_POSTGRES_USER}}:{{.SUPABASE_POSTGRES_PASSWORD}}@host.docker.internal:{{.SUPABASE_POSTGRES_PORT}}"
+  POSTGRES_CONNECTION_STRING: "postgres://{{.SUPABASE_POSTGRES_USER}}:{{.SUPABASE_POSTGRES_PASSWORD}}@{{.MAIN_IP_ADDRESS}}:{{.SUPABASE_POSTGRES_PORT}}"
   POSTGRES_CONNECTION_STRING_WITH_DB: "{{.POSTGRES_CONNECTION_STRING}}/{{.SUPABASE_POSTGRES_DBNAME}}"
+  KC_HOSTNAME_STRICT:
+    sh: 'if echo "{{.KEYCLOAK_HOSTNAME_URL}}" | grep -q "^https://"; then echo "true"; else echo "false"; fi'
+
+env:
+  KC_HOSTNAME_STRICT: "{{.KC_HOSTNAME_STRICT}}"
 
 tasks:
   supabase-clone:
@@ -113,3 +120,8 @@ tasks:
     cmds:
       - task: supabase-clean
       - task: keycloak-clean
+
+  force-remove-source:
+    desc: Force remove the Supabase source directory by mounting it to a container as a workaround for lacking root access on the host
+    cmds:
+      - docker run --rm -it -v {{.ROOT_DIR}}/central-services:/code alpine rm -fr /code/src-supabase

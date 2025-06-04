@@ -71,6 +71,7 @@ Before you begin, ensure you have the following tools installed:
 - [**Task**](https://taskfile.dev/installation/) - Build tool used for running project commands and automation
 - [**uv**](https://github.com/astral-sh/uv) - Fast Python package installer and resolver, required for the service API
 - **Python** - Required for running the service API
+- **Supabase CLI** - Required to run some maintenance tasks when deploying and configuring Supabase
 
 ## Deployment
 

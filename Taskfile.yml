@@ -3,7 +3,8 @@ version: "3"
 vars:
   JWT_CLI_IMAGE: bitnami/jwt-cli:6
   ENV_KEYS_PATH: "{{.ROOT_DIR}}/.env.keys"
-  KEYCLOAK_HOSTNAME_URL: "{{.KEYCLOAK_HOST}}:{{.KEYCLOAK_PORT}}"
+  KEYCLOAK_HOSTNAME_URL:
+    sh: 'if [[ "{{.KEYCLOAK_HOST}}" == https://* ]]; then echo "{{.KEYCLOAK_HOST}}"; else echo "{{.KEYCLOAK_HOST}}:{{.KEYCLOAK_PORT}}"; fi'
   # Base URL of the Keycloak server including realm path
   # Must be accessible from inside the Docker container running the auth service
   KEYCLOAK_SUPABASE_URL: "{{.KEYCLOAK_HOSTNAME_URL}}/realms/{{.KEYCLOAK_REALM}}"
