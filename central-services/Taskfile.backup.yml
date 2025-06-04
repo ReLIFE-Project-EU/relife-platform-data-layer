@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   BACKUP_NETWORK_NAME:
-    sh: "{{.ROOT_DIR}}/central-services/backup/scripts/get-network-name.sh"
+    sh: docker network ls | grep relife-supabase | awk '{print $2}'
 
 tasks:
   deploy:

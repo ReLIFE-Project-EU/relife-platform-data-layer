@@ -1,0 +1,32 @@
+name: relife-proxy
+services:
+  caddy:
+    image: caddy:2.7
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    cap_add:
+      - NET_ADMIN
+    environment:
+      CADDY_DEBUG: 1
+      DNS_HOSTNAME: ${CADDY_DNS_HOSTNAME}
+      KEYCLOAK_NETWORK: ${CADDY_KEYCLOAK_NETWORK}
+      SUPABASE_NETWORK: ${CADDY_SUPABASE_NETWORK}
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - keycloak_network
+      - supabase_network
+volumes:
+  caddy_data: {}
+  caddy_config: {}
+networks:
+  keycloak_network:
+    name: ${CADDY_KEYCLOAK_NETWORK}
+    external: true
+  supabase_network:
+    name: ${CADDY_SUPABASE_NETWORK}
+    external: true

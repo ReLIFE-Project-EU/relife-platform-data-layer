@@ -2,6 +2,7 @@ version: "3"
 
 includes:
   backup: ./Taskfile.backup.yml
+  proxy: ./Taskfile.proxy.yml
 
 vars:
   SUPABASE_GIT_URL: https://github.com/supabase/supabase

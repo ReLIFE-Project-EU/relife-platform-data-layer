@@ -1,0 +1,21 @@
+{
+	key_type rsa2048
+
+	cert_issuer acme {
+		preferred_chains {
+			root_common_name "ISRG Root X1"
+		}
+	}
+
+	log {
+		level debug
+	}
+}
+
+supabase.{$DNS_HOSTNAME} {
+	reverse_proxy kong.{$SUPABASE_NETWORK}:8000
+}
+
+keycloak.{$DNS_HOSTNAME} {
+	reverse_proxy keycloak.{$KEYCLOAK_NETWORK}:8080
+}
