@@ -15,6 +15,7 @@ tasks:
     desc: Start the proxy service
     requires:
       vars:
+        # This should be only the domain name without the http scheme (e.g., example.com)
         - CADDY_DNS_HOSTNAME
     env:
       CADDY_DNS_HOSTNAME: "{{.CADDY_DNS_HOSTNAME}}"
