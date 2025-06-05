@@ -2,9 +2,9 @@ version: "3"
 
 vars:
   CADDY_KEYCLOAK_NETWORK:
-    sh: docker network ls | grep relife-keycloak | awk '{print $2}'
+    sh: docker network ls | grep {{.NETWORK_KEYCLOAK_SEARCH_PATTERN}} | awk '{print $2}'
   CADDY_SUPABASE_NETWORK:
-    sh: docker network ls | grep relife-supabase | awk '{print $2}'
+    sh: docker network ls | grep {{.NETWORK_SUPABASE_SEARCH_PATTERN}} | awk '{print $2}'
 
 env:
   CADDY_KEYCLOAK_NETWORK: "{{.CADDY_KEYCLOAK_NETWORK}}"

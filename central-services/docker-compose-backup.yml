@@ -1,3 +1,4 @@
+name: relife-backup
 services:
   backup:
     build:
@@ -9,7 +10,6 @@ services:
       PGUSER: ${SUPABASE_POSTGRES_USER}
       DB_HOST: supabase-db
       DB_SUPERUSER: postgres
-      DB_SUPERUSER_DATABASE: ${SUPABASE_POSTGRES_DB}
       DB_SUPERUSER_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD}
     volumes:
       - backup_data:/var/lib/backups

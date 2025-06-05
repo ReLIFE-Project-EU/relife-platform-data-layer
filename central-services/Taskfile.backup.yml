@@ -1,8 +1,9 @@
 version: "3"
 
 vars:
+  MANUAL_BACKUP_SCRIPT: /opt/backup/scripts/manual-backup.sh
   BACKUP_NETWORK_NAME:
-    sh: docker network ls | grep relife-supabase | awk '{print $2}'
+    sh: docker network ls | grep {{.NETWORK_SUPABASE_SEARCH_PATTERN}} | awk '{print $2}'
 
 tasks:
   deploy:
@@ -25,19 +26,27 @@ tasks:
   backup:
     desc: Run a manual backup of all databases
     cmds:
-      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh logical
+      - >
+        docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec
+        backup {{.MANUAL_BACKUP_SCRIPT}} logical
 
   backup-physical:
     desc: Run a manual physical backup of the database cluster
     cmds:
-      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh physical
+      - >
+        docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec
+        backup {{.MANUAL_BACKUP_SCRIPT}} physical
 
   list:
     desc: List all available backups
     cmds:
-      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh list
+      - >
+        docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec
+        backup {{.MANUAL_BACKUP_SCRIPT}} list
 
   cleanup:
     desc: Clean up old backups
     cmds:
-      - docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec backup /opt/backup/scripts/manual-backup.sh cleanup
+      - >
+        docker compose -f {{.TASKFILE_DIR}}/docker-compose-backup.yml exec
+        backup {{.MANUAL_BACKUP_SCRIPT}} cleanup
