@@ -42,6 +42,7 @@ tasks:
     cmds:
       - envsubst < {{.TASKFILE_DIR}}/.env.supabase.tmpl > {{.SUPABASE_GIT_DIR}}/docker/.env
       - cp -f {{.TASKFILE_DIR}}/docker-compose-supabase.yml {{.SUPABASE_GIT_DIR}}/docker/docker-compose.yml
+      - cp -f {{.TASKFILE_DIR}}/docker-compose-supabase-s3.yml {{.SUPABASE_GIT_DIR}}/docker/docker-compose.s3.yml
     preconditions:
       - test -f {{.ENV_KEYS_PATH}}
 
