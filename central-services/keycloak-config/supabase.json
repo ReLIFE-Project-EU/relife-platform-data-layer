@@ -1,7 +1,7 @@
 {
   "clientId": "supabase",
   "name": "Supabase",
-  "description": "Supabase uses this client for social login via Keycloak",
+  "description": "This client is used by Supabase for social login through Keycloak in browser frontend applications.",
   "rootUrl": "",
   "adminUrl": "",
   "baseUrl": "",

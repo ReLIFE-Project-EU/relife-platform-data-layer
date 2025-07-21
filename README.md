@@ -87,35 +87,57 @@ Then, you can deploy the central services (Supabase and Keycloak) using the foll
 task central:deploy
 ```
 
-### Configuring the Keycloak Realm
+### Configuring Keycloak
 
-Now that the Keycloak service is running, you need to configure the Keycloak realm for authentication.
+With the Keycloak service now running, you need to set up the Keycloak realm for authentication.
 
-Access the Keycloak admin console at `http://localhost:${KEYCLOAK_PORT}/admin/` (the default port is 8080). Log in using the admin credentials defined in your environment variables: `KEYCLOAK_ADMIN_USER` and `KEYCLOAK_ADMIN_PASSWORD`. By default, both username and password are set to `keycloak`.
+#### Access the Keycloak Admin Dashboard
 
-Follow these steps to configure the realm:
+1. Open the Keycloak admin console at `http://<your-hostname>:${KEYCLOAK_PORT}/admin/`
+2. Log in using the admin credentials specified in your environment variables: `KEYCLOAK_ADMIN_USER` and `KEYCLOAK_ADMIN_PASSWORD`
 
-> [!NOTE]
-> These configuration steps also include the steps to support the examples available in this repository: the open access tool (i.e., frontend) and the service API (i.e., backend). Generally speaking, you only need to create a realm, the `supabase` client, and a client for each ReLIFE Service API that needs to be integrated.
+> [!TIP]
+> The default Keycloak port is 8080, and both the username and password are initially set to `keycloak`. Ensure to change these defaults in a production environment.
 
-1. Create a new realm named `relife`.
-2. In the _Clients_ section, click _Import client_ and import all client configurations from the JSON files in the `central-services/keycloak-config` directory.
-3. For the `service` client, add the `realm-admin` role under the _Service accounts roles_ section.
-4. Create a new user in the realm and set their password—this user will be used to test authentication in the open access tool web applications. Make sure to enable the _Email Verified_ setting for this user.
-5. Create a new _realm role_ named `relife_admin` (this matches the default `admin_role_name` setting in the ReLIFE Service API Example). Assign this role to the user if you want them to have access to the admin-only features in the example application.
+#### Configure the Realm
 
-For security, it's recommended to regenerate the client secrets. You can do this in the _Credentials_ section of each client's configuration. Copy the new secrets to your `.env` file to update the appropriate environment variables. For example:
+First, create a realm with the name specified in the `KEYCLOAK_REALM` variable (default is `relife`).
+
+Each _client_ ([as defined by OAuth](https://oauth.net/2/client-types/)) that needs to connect to Supabase services must have a client entry in the _Clients_ section of the realm management dashboard.
+
+##### Create the Frontend Client
+
+By default, at least one client is necessary to enable frontend applications to access Supabase from the browser.
+
+To create the client for frontend applications, you can import the `central-services/keycloak-config/supabase.json` file in the _Clients > Import client_ section of the Keycloak realm dashboard. It's important to note that the default configuration in `supabase.json` **is not final nor secure** and needs to be updated:
+
+1. Update the _valid redirect URIs_. In OAuth, valid redirect URIs are the URLs to which the authorization server (i.e., Keycloak) can send the user after they have authenticated. These URIs are initially set to access the examples in this repository on `localhost`. For production, these should be updated to the public URLs of the frontend applications.
+2. Regenerate the client secret in the _Credentials_ section of the _Client details_.
+
+After regenerating the secret, update your `.env` file with the new secret. For example:
 
 ```dotenv
 KEYCLOAK_SUPABASE_CLIENT_SECRET=6VMhsLstslaAY6DogeOsgT9odH1y64OE
-KEYCLOAK_RELIFE_SERVICE_CLIENT_SECRET=VnCufvj4jSbd6gS5tadQLT0oEyliGyVU
 ```
 
-If you regenerate the secrets, you need to redeploy Supabase:
+Next, restart Supabase:
 
 ```console
 task central:supabase-deploy
 ```
+
+With at least one _client_ in place, we can now create users in the realm and set their passwords. These users will be allowed to authenticate into the web applications that utilise any of these _clients_.
+
+> [!NOTE]
+> The _Email Verified_ setting should be enabled for users to be allowed to log in.
+
+##### Create a Backend Service Client
+
+For any backend API or service that needs to connect to Supabase, create a separate _confidential client_.
+
+An example configuration for a `service` client is available in the `central-services/keycloak-config/service.json` file, prepared for the example API project in this repository.
+
+For this `service` client, add the `realm-admin` role in the _Service accounts roles_ section. Also, create a new _realm role_ named `relife_admin`. This role corresponds to the default `admin_role_name` setting in the ReLIFE Service API Example. Assign this role to users who need access to admin-only features in the example application.
 
 ## Examples
 
