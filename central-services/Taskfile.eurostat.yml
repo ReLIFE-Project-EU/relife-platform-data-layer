@@ -2,16 +2,34 @@ version: "3"
 
 vars:
   EUROSTAT_DIR: "{{.TASKFILE_DIR}}/eurostat"
+  EUROSTAT_COMPOSE_FILE: "{{.TASKFILE_DIR}}/docker-compose-eurostat.yml"
+  EUROSTAT_NETWORK_NAME:
+    sh: docker network ls | grep {{.NETWORK_SUPABASE_SEARCH_PATTERN}} | awk '{print $2}'
 
 tasks:
-  sync:
-    desc: "Sync Eurostat datasets into Supabase (dry run; pass -- --apply to write)"
-    dir: "{{.EUROSTAT_DIR}}"
+  deploy:
+    desc: Deploy the Eurostat sync job and its weekly scheduler using Docker Compose
+    dir: "{{.TASKFILE_DIR}}"
     env:
-      SUPABASE_URL: "{{.SUPABASE_URL}}"
-      SUPABASE_SERVICE_ROLE_KEY: "{{.SUPABASE_SERVICE_ROLE_KEY}}"
+      EUROSTAT_NETWORK_NAME: "{{.EUROSTAT_NETWORK_NAME}}"
     cmds:
-      - uv run relife-eurostat sync {{.CLI_ARGS}}
+      - echo Connecting eurostat to network {{.EUROSTAT_NETWORK_NAME}}
+      - docker compose -f {{.EUROSTAT_COMPOSE_FILE}} up -d --build --wait
+
+  clean:
+    desc: Stop and remove the Eurostat sync job and its scheduler
+    dir: "{{.TASKFILE_DIR}}"
+    env:
+      EUROSTAT_NETWORK_NAME: "{{.EUROSTAT_NETWORK_NAME}}"
+    cmds:
+      - docker compose -f {{.EUROSTAT_COMPOSE_FILE}} down
+
+  sync:
+    desc: "Sync Eurostat datasets in the deployed container (dry run; pass -- --apply to write)"
+    cmds:
+      - >
+        docker compose -f {{.EUROSTAT_COMPOSE_FILE}} exec
+        eurostat relife-eurostat sync {{.CLI_ARGS}}
 
   test:
     desc: Run the Eurostat ingestion job tests and type checks
