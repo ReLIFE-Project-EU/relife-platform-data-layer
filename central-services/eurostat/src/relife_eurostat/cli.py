@@ -2,10 +2,11 @@ import argparse
 import logging
 import os
 import sys
+from typing import Sequence
 
 from supabase import create_client
 
-from relife_eurostat.datasets import HOUSEHOLD_ELECTRICITY_PRICES, Dataset
+from relife_eurostat.datasets import DATASETS, Dataset
 from relife_eurostat.evaluate import Evaluation, evaluate
 from relife_eurostat.fetch import fetch
 from relife_eurostat.store import Store
@@ -13,21 +14,29 @@ from relife_eurostat.store import Store
 _logger = logging.getLogger(__name__)
 
 
-def _plan(dataset: Dataset, store: Store) -> Evaluation:
-    fetched = fetch(dataset)
-    result = evaluate(stored=store.latest(dataset.code), fetched=fetched)
+def _plan(datasets: Sequence[Dataset], store: Store) -> Evaluation:
+    total = Evaluation()
 
-    print(
-        f"{dataset.code}: fetched {len(fetched)} values, "
-        f"{len(result.new)} new, {len(result.changed)} changed"
-    )
+    for dataset in datasets:
+        fetched = fetch(dataset)
+        result = evaluate(stored=store.latest(dataset.code), fetched=fetched)
 
-    return result
+        print(
+            f"{dataset.code}: fetched {len(fetched)} values, "
+            f"{len(result.new)} new, {len(result.changed)} changed"
+        )
+
+        total.new.extend(result.new)
+        total.changed.extend(result.changed)
+
+    print(f"Total: {len(total.new)} new, {len(total.changed)} changed")
+
+    return total
 
 
-def sync(dataset: Dataset, store: Store, apply: bool) -> None:
+def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
     if not apply:
-        _plan(dataset, store)
+        _plan(datasets, store)
         print("Dry run: nothing was written. Pass --apply to store the values.")
         return
 
@@ -35,7 +44,9 @@ def sync(dataset: Dataset, store: Store, apply: bool) -> None:
     _logger.info("Started run %s", run_id)
 
     try:
-        result = _plan(dataset, store)
+        # Plan every dataset before writing any, so a failed download
+        # writes nothing
+        result = _plan(datasets, store)
         store.insert_observations(run_id, result.new + result.changed)
         store.succeed_run(run_id, len(result.new), len(result.changed))
     except Exception as exc:
@@ -90,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     try:
-        sync(HOUSEHOLD_ELECTRICITY_PRICES, _create_store(), apply=args.apply)
+        sync(DATASETS, _create_store(), apply=args.apply)
     except Exception:
         _logger.exception("Sync failed")
         return 1
