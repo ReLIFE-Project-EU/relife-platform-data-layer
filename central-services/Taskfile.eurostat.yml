@@ -1,0 +1,21 @@
+version: "3"
+
+vars:
+  EUROSTAT_DIR: "{{.TASKFILE_DIR}}/eurostat"
+
+tasks:
+  sync:
+    desc: "Sync Eurostat datasets into Supabase (dry run; pass -- --apply to write)"
+    dir: "{{.EUROSTAT_DIR}}"
+    env:
+      SUPABASE_URL: "{{.SUPABASE_URL}}"
+      SUPABASE_SERVICE_ROLE_KEY: "{{.SUPABASE_SERVICE_ROLE_KEY}}"
+    cmds:
+      - uv run relife-eurostat sync {{.CLI_ARGS}}
+
+  test:
+    desc: Run the Eurostat ingestion job tests and type checks
+    dir: "{{.EUROSTAT_DIR}}"
+    cmds:
+      - uv run mypy src tests
+      - uv run pytest
