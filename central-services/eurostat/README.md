@@ -32,14 +32,7 @@ uv run relife-eurostat sync --apply
 uv run relife-eurostat sync --apply --dataset nrg_pc_204
 ```
 
-From the repository root, the same commands read the keys from `.env.keys`:
-
-```console
-task central:eurostat:sync
-task central:eurostat:sync -- --apply
-```
-
-The CLI exits non-zero on failure, including for an unknown `--dataset` code.
+The CLI exits non-zero on failure, including for an unknown `--dataset` code. To run it in the deployed container instead, see [Operations](#operations).
 
 ## Skipping Unchanged Datasets
 
@@ -64,3 +57,31 @@ Each run compares the newest period to the previous one (per non-`geo` slice). E
 
 - **`completeness`**: a country had a value last period and has none in the newest one
 - **`outlier`**: a country's % change from last period stands out sharply from the other countries in the same slice. `EU27_2020` is left out; countries with a previous value of 0 are skipped.
+
+## Operations
+
+The job runs weekly in Docker next to the central Supabase. It uses the same pattern as the backup service: an idle `relife-eurostat` container, plus a `relife-eurostat-cron` Ofelia container that runs `relife-eurostat sync --apply` in it **every Monday at 06:00 UTC** (`ofelia-config.ini`).
+
+### Environment
+
+`SUPABASE_SERVICE_ROLE_KEY` comes from `.env.keys`, which Task loads, so run Compose through the tasks below. `SUPABASE_URL` is fixed to `http://kong:8000`, since the container joins the Supabase Docker network (found by `NETWORK_SUPABASE_SEARCH_PATTERN`).
+
+### Deploy and Sync
+
+From the repository root, with Supabase running:
+
+```console
+task central:eurostat:deploy              # build and start both containers
+task central:eurostat:sync                # dry run in the container
+task central:eurostat:sync -- --apply     # write; same as the weekly job
+task central:eurostat:clean               # stop and remove both containers
+```
+
+Check the schedule and the weekly runs' output with `docker logs relife-eurostat-cron`. Every `--apply` run also leaves a row in `eurostat_runs`.
+
+### Reviewing Flags in Studio
+
+1. Open Studio at `SUPABASE_URL` and log in with `SUPABASE_DASHBOARD_USERNAME` and `SUPABASE_DASHBOARD_PASSWORD`.
+2. In the Table Editor, open `eurostat_quality_flags` and filter on `status = open`.
+3. Read the `reason` and check the value against Eurostat for that `dataset_code`, `geo` and `period`.
+4. Set `status` to `accepted` if the value is genuine, or `rejected` if it is a data error. Later runs won't raise the same flag again.

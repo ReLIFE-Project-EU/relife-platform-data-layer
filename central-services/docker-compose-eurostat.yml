@@ -1,0 +1,31 @@
+name: relife-eurostat
+services:
+  eurostat:
+    build:
+      context: ./eurostat
+      dockerfile: Dockerfile
+    container_name: relife-eurostat
+    restart: unless-stopped
+    # tail ignores SIGTERM as PID 1; an init process lets it stop promptly
+    init: true
+    environment:
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+    networks:
+      - eurostat-network
+  eurostat-cron:
+    image: mcuadros/ofelia:0.3
+    container_name: relife-eurostat-cron
+    restart: unless-stopped
+    command: daemon --config=/etc/ofelia/config.ini
+    depends_on:
+      - eurostat
+    volumes:
+      - ./eurostat/ofelia-config.ini:/etc/ofelia/config.ini:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - eurostat-network
+networks:
+  eurostat-network:
+    name: ${EUROSTAT_NETWORK_NAME:-relife-network}
+    external: true
