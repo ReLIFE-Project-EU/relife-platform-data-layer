@@ -5,14 +5,18 @@ from typing import Any, Sequence, cast
 from postgrest import ReturnMethod
 from supabase import Client
 
-from relife_eurostat.models import Observation
+from relife_eurostat.models import Observation, QualityFlag
 
 RUNS_TABLE = "eurostat_runs"
 OBSERVATIONS_TABLE = "eurostat_observations"
 LATEST_VIEW = "eurostat_latest"
+FLAGS_TABLE = "eurostat_quality_flags"
 
 # Columns of the eurostat_observations_run_key_idx unique index
 OBSERVATION_RUN_KEY = "run_id,dataset_code,dimensions,geo,period"
+
+# Columns of the eurostat_quality_flags_key_idx unique index
+FLAG_KEY = "dataset_code,dimensions,geo,period,check"
 
 # Stays within PostgREST's default max-rows so every page is complete
 PAGE_SIZE = 1000
@@ -20,7 +24,7 @@ INSERT_BATCH_SIZE = 500
 
 
 class Store:
-    """Reads and writes Eurostat runs and observations through the Supabase API."""
+    """Reads and writes Eurostat runs, observations and quality flags through the Supabase API."""
 
     def __init__(self, client: Client) -> None:
         self._client = client
@@ -71,13 +75,39 @@ class Store:
                 returning=ReturnMethod.minimal,
             ).execute()
 
-    def succeed_run(self, run_id: str, added_count: int, changed_count: int) -> None:
+    def insert_flags(self, run_id: str, flags: Sequence[QualityFlag]) -> int:
+        """Add flags to the review list and return how many were not there yet."""
+
+        rows = [_flag_to_row(run_id, flag) for flag in flags]
+        inserted = 0
+
+        # ON CONFLICT DO NOTHING keeps an already raised flag, and the status a
+        # reviewer gave it; only the rows actually inserted are returned
+        for offset in range(0, len(rows), INSERT_BATCH_SIZE):
+            response = (
+                self._client.table(FLAGS_TABLE)
+                .upsert(
+                    rows[offset : offset + INSERT_BATCH_SIZE],
+                    on_conflict=FLAG_KEY,
+                    ignore_duplicates=True,
+                    returning=ReturnMethod.representation,
+                )
+                .execute()
+            )
+            inserted += len(cast(list[dict[str, Any]], response.data))
+
+        return inserted
+
+    def succeed_run(
+        self, run_id: str, added_count: int, changed_count: int, flag_count: int
+    ) -> None:
         self._finish_run(
             run_id,
             {
                 "status": "succeeded",
                 "added_count": added_count,
                 "changed_count": changed_count,
+                "flag_count": flag_count,
             },
         )
 
@@ -118,4 +148,16 @@ def _observation_to_row(run_id: str, observation: Observation) -> dict[str, Any]
         "period": observation.period,
         "value": None if value is None else str(value),
         "flag": observation.flag,
+    }
+
+
+def _flag_to_row(run_id: str, flag: QualityFlag) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "dataset_code": flag.dataset_code,
+        "dimensions": dict(flag.dimensions),
+        "geo": flag.geo,
+        "period": flag.period,
+        "check": flag.check,
+        "reason": flag.reason,
     }
