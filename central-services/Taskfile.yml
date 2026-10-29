@@ -51,7 +51,8 @@ tasks:
     desc: Run the migrations for the Supabase project
     dir: "{{.TASKFILE_DIR}}"
     cmds:
-      - supabase migrations up --db-url {{.POSTGRES_CONNECTION_STRING_WITH_DB}}
+      # Self-hosted pooler has no TLS; CLI needs sslmode=disable
+      - supabase migrations up --db-url "{{.POSTGRES_CONNECTION_STRING_WITH_DB}}?sslmode=disable"
 
   supabase-restore:
     desc: Restore a SQL dump file to the Supabase database
