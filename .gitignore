@@ -1,7 +1,7 @@
 ## Misc
 ########
 
-./central-services/src-*
+/central-services/src-*
 .env.keys
 .task
 
