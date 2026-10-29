@@ -27,6 +27,9 @@ uv run relife-eurostat sync
 
 # Store new and changed values and add flags to the review list
 uv run relife-eurostat sync --apply
+
+# Process one dataset even if Eurostat has not changed it
+uv run relife-eurostat sync --apply --dataset nrg_pc_204
 ```
 
 From the repository root, the same commands read the keys from `.env.keys`:
@@ -36,13 +39,19 @@ task central:eurostat:sync
 task central:eurostat:sync -- --apply
 ```
 
-The CLI exits non-zero on failure.
+The CLI exits non-zero on failure, including for an unknown `--dataset` code.
+
+## Skipping Unchanged Datasets
+
+Each run first reads Eurostat's [data inventory](https://ec.europa.eu/eurostat/api/dissemination/files/inventory?type=data) and takes every dataset's "Last data change". A dataset is skipped, without downloading it, when that value matches the one recorded by the newest `succeeded` run that saw it. Runs left `running` or marked `failed` are ignored, so the next run processes their datasets again. In a quiet week a run writes nothing but its run row.
+
+A configured dataset missing from the inventory fails the run, which catches renamed or retired datasets. `--dataset CODE` processes that dataset even if it has not changed, and checks only that dataset against the inventory. Use it after changing a dataset's query in `DATASETS`, since the inventory only reflects changes on Eurostat's side.
 
 ## Storage
 
 Schema: `central-services/supabase/migrations/*_eurostat.sql`. RLS is on with no policies (service role only).
 
-- `eurostat_runs`: one row per `--apply` run (`running` → `succeeded` / `failed`), with the number of flags raised in `flag_count` (including ones already in the review list)
+- `eurostat_runs`: one row per `--apply` run (`running` → `succeeded` / `failed`), with the number of flags raised in `flag_count` (including ones already in the review list), the "Last data change" seen per dataset in `datasets`, and whether any of them was new in `has_new_data`
 - `eurostat_observations`: append-only revisions, linked to the run that wrote them
 - `eurostat_latest`: newest revision per series and period
 - `eurostat_quality_flags`: review list of suspicious values (see below)

@@ -2,23 +2,93 @@ import argparse
 import logging
 import os
 import sys
-from typing import Sequence
+from dataclasses import dataclass, field
+from typing import Protocol, Sequence
 
 from supabase import create_client
 
 from relife_eurostat.datasets import DATASETS, Dataset
 from relife_eurostat.evaluate import Evaluation, evaluate
-from relife_eurostat.fetch import fetch
+from relife_eurostat.fetch import Eurostat, EurostatError
+from relife_eurostat.models import Observation, QualityFlag, RunSummary
 from relife_eurostat.store import Store
 
 _logger = logging.getLogger(__name__)
 
 
-def _plan(datasets: Sequence[Dataset], store: Store) -> Evaluation:
-    total = Evaluation()
+class SyncStore(Protocol):
+    def latest(self, dataset_code: str) -> list[Observation]: ...
+
+    def last_data_change(self, dataset_code: str) -> str | None: ...
+
+    def start_run(self) -> str: ...
+
+    def insert_observations(
+        self, run_id: str, observations: Sequence[Observation]
+    ) -> None: ...
+
+    def insert_flags(self, run_id: str, flags: Sequence[QualityFlag]) -> int: ...
+
+    def succeed_run(self, run_id: str, summary: RunSummary) -> None: ...
+
+    def fail_run(self, run_id: str, error: str) -> None: ...
+
+
+class EurostatSource(Protocol):
+    def inventory(self) -> dict[str, str]: ...
+
+    def fetch(self, dataset: Dataset) -> list[Observation]: ...
+
+
+@dataclass
+class _Plan:
+    evaluation: Evaluation = field(default_factory=Evaluation)
+    # "Last data change" seen per dataset code
+    datasets: dict[str, str] = field(default_factory=dict)
+    has_new_data: bool = False
+
+    def summary(self) -> RunSummary:
+        return RunSummary(
+            added_count=len(self.evaluation.new),
+            changed_count=len(self.evaluation.changed),
+            flag_count=len(self.evaluation.flags),
+            datasets=self.datasets,
+            has_new_data=self.has_new_data,
+        )
+
+
+def _plan(
+    datasets: Sequence[Dataset],
+    store: SyncStore,
+    eurostat: EurostatSource,
+    force: bool,
+) -> _Plan:
+    inventory = eurostat.inventory()
+
+    # A renamed or retired dataset would otherwise go quietly stale, and an
+    # empty "Last data change" would be recorded and then never differ
+    missing = [dataset.code for dataset in datasets if not inventory.get(dataset.code)]
+
+    if missing:
+        raise EurostatError(
+            f"Datasets missing from the Eurostat inventory or without a "
+            f"last data change: {missing}"
+        )
+
+    plan = _Plan()
+    total = plan.evaluation
 
     for dataset in datasets:
-        fetched = fetch(dataset)
+        last_change = inventory[dataset.code]
+        changed = last_change != store.last_data_change(dataset.code)
+        plan.datasets[dataset.code] = last_change
+        plan.has_new_data = plan.has_new_data or changed
+
+        if not changed and not force:
+            print(f"{dataset.code}: no data change since {last_change}, skipped")
+            continue
+
+        fetched = eurostat.fetch(dataset)
         result = evaluate(stored=store.latest(dataset.code), fetched=fetched)
 
         print(
@@ -39,12 +109,28 @@ def _plan(datasets: Sequence[Dataset], store: Store) -> Evaluation:
         f"{len(total.flags)} flagged"
     )
 
-    return total
+    return plan
 
 
-def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
+def sync(
+    datasets: Sequence[Dataset],
+    store: SyncStore,
+    eurostat: EurostatSource,
+    apply: bool,
+    dataset_code: str | None = None,
+) -> None:
+    """Sync the datasets; with dataset_code, sync only that one even if it has not changed."""
+
+    force = dataset_code is not None
+
+    if dataset_code is not None:
+        datasets = [dataset for dataset in datasets if dataset.code == dataset_code]
+
+        if not datasets:
+            raise ValueError(f"Unknown dataset {dataset_code!r}")
+
     if not apply:
-        _plan(datasets, store)
+        _plan(datasets, store, eurostat, force)
         print(
             "Dry run: nothing was written. "
             "Pass --apply to store the values and flags."
@@ -57,12 +143,11 @@ def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
     try:
         # Plan every dataset before writing any, so a failed download
         # writes nothing
-        result = _plan(datasets, store)
+        plan = _plan(datasets, store, eurostat, force)
+        result = plan.evaluation
         store.insert_observations(run_id, result.new + result.changed)
         new_flag_count = store.insert_flags(run_id, result.flags)
-        store.succeed_run(
-            run_id, len(result.new), len(result.changed), len(result.flags)
-        )
+        store.succeed_run(run_id, plan.summary())
     except Exception as exc:
         try:
             store.fail_run(run_id, f"{type(exc).__name__}: {exc}")
@@ -106,6 +191,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Write to Supabase; without it, only print what would be written",
     )
 
+    sync_parser.add_argument(
+        "--dataset",
+        metavar="CODE",
+        help="Process only this dataset, even if Eurostat has not changed it",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -118,7 +209,13 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     try:
-        sync(DATASETS, _create_store(), apply=args.apply)
+        sync(
+            DATASETS,
+            _create_store(),
+            Eurostat(),
+            apply=args.apply,
+            dataset_code=args.dataset,
+        )
     except Exception:
         _logger.exception("Sync failed")
         return 1

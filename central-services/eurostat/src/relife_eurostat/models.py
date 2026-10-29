@@ -43,3 +43,16 @@ class QualityFlag:
     check: QualityCheck
     # Short human-readable explanation shown to the reviewer
     reason: str
+
+
+@dataclass(frozen=True)
+class RunSummary:
+    """What a succeeded run recorded on its run row."""
+
+    added_count: int
+    changed_count: int
+    flag_count: int
+    # Eurostat "Last data change" seen per dataset code, from the inventory
+    datasets: Mapping[str, str]
+    # Whether any dataset's "Last data change" differed from the recorded one
+    has_new_data: bool

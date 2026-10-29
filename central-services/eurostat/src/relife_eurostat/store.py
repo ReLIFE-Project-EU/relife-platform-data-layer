@@ -5,7 +5,7 @@ from typing import Any, Sequence, cast
 from postgrest import ReturnMethod
 from supabase import Client
 
-from relife_eurostat.models import Observation, QualityFlag
+from relife_eurostat.models import Observation, QualityFlag, RunSummary
 
 RUNS_TABLE = "eurostat_runs"
 OBSERVATIONS_TABLE = "eurostat_observations"
@@ -53,6 +53,23 @@ class Store:
 
             start += PAGE_SIZE
 
+    def last_data_change(self, dataset_code: str) -> str | None:
+        """Return the "Last data change" recorded by the newest succeeded run that saw the dataset."""
+
+        # Runs left running or marked failed may not have stored their values
+        response = (
+            self._client.table(RUNS_TABLE)
+            .select("datasets")
+            .eq("status", "succeeded")
+            .not_.is_(f"datasets->>{dataset_code}", "null")
+            .order("started_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        rows = cast(list[dict[str, Any]], response.data)
+        return str(rows[0]["datasets"][dataset_code]) if rows else None
+
     def start_run(self) -> str:
         response = (
             self._client.table(RUNS_TABLE).insert({"status": "running"}).execute()
@@ -98,16 +115,16 @@ class Store:
 
         return inserted
 
-    def succeed_run(
-        self, run_id: str, added_count: int, changed_count: int, flag_count: int
-    ) -> None:
+    def succeed_run(self, run_id: str, summary: RunSummary) -> None:
         self._finish_run(
             run_id,
             {
                 "status": "succeeded",
-                "added_count": added_count,
-                "changed_count": changed_count,
-                "flag_count": flag_count,
+                "added_count": summary.added_count,
+                "changed_count": summary.changed_count,
+                "flag_count": summary.flag_count,
+                "datasets": dict(summary.datasets),
+                "has_new_data": summary.has_new_data,
             },
         )
 
