@@ -12,6 +12,9 @@ from relife_eurostat.models import Observation
 _logger = logging.getLogger(__name__)
 
 SDMX_DATA_URL = "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data"
+# Lists every dataset with its "Last data change", the time its values last
+# changed; the JSON-stat "updated" field is the publication time instead
+INVENTORY_URL = "https://ec.europa.eu/eurostat/api/dissemination/files/inventory"
 TIMEOUT_SECONDS = 120
 
 _GZIP_MAGIC = b"\x1f\x8b"
@@ -32,25 +35,43 @@ _NON_DIMENSION_COLUMNS = {
     "CONF_STATUS",
 }
 
+# Data inventory TSV columns
+_INVENTORY_CODE = "Code"
+_LAST_DATA_CHANGE = "Last data change"
+
 
 class EurostatError(Exception):
     pass
 
 
-def fetch(dataset: Dataset) -> list[Observation]:
-    url = f"{SDMX_DATA_URL}/{dataset.code}/{dataset.key}"
+class Eurostat:
+    """Reads Eurostat's data inventory and datasets over its public API."""
 
-    params = {
-        "format": "SDMX-CSV",
-        "compressed": "true",
-        "startPeriod": dataset.start_period,
-    }
+    def inventory(self) -> dict[str, str]:
+        """Return the "Last data change" of every Eurostat dataset by lower-case code."""
 
-    _logger.info("Fetching %s from %s", dataset.code, url)
-    response = httpx.get(url, params=params, timeout=TIMEOUT_SECONDS)
-    response.raise_for_status()
+        _logger.info("Fetching the data inventory from %s", INVENTORY_URL)
+        response = httpx.get(
+            INVENTORY_URL, params={"type": "data"}, timeout=TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
 
-    return parse_sdmx_csv(dataset.code, _decode(response.content))
+        return parse_inventory(response.text)
+
+    def fetch(self, dataset: Dataset) -> list[Observation]:
+        url = f"{SDMX_DATA_URL}/{dataset.code}/{dataset.key}"
+
+        params = {
+            "format": "SDMX-CSV",
+            "compressed": "true",
+            "startPeriod": dataset.start_period,
+        }
+
+        _logger.info("Fetching %s from %s", dataset.code, url)
+        response = httpx.get(url, params=params, timeout=TIMEOUT_SECONDS)
+        response.raise_for_status()
+
+        return parse_sdmx_csv(dataset.code, _decode(response.content))
 
 
 def _decode(content: bytes) -> str:
@@ -69,6 +90,18 @@ def _decode(content: bytes) -> str:
         )
 
     return text
+
+
+def parse_inventory(text: str) -> dict[str, str]:
+    reader = csv.DictReader(io.StringIO(text), delimiter="\t")
+    missing = {_INVENTORY_CODE, _LAST_DATA_CHANGE} - set(reader.fieldnames or [])
+
+    if missing:
+        raise EurostatError(f"Inventory lacks columns: {sorted(missing)}")
+
+    # The inventory lists codes in upper case; the SDMX API and DATASETS use
+    # lower case
+    return {row[_INVENTORY_CODE].lower(): row[_LAST_DATA_CHANGE] for row in reader}
 
 
 def parse_sdmx_csv(dataset_code: str, text: str) -> list[Observation]:
