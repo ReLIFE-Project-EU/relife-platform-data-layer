@@ -4,11 +4,14 @@ A small CLI that pulls Eurostat datasets into the central Supabase so ReLIFE ser
 
 ## Datasets
 
-| Code         | Content                                                                                                                      |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `nrg_pc_204` | Household electricity prices, half-yearly. Band `KWH2500-4999`, all taxes, `EUR` per `KWH`. EU27 and `EU27_2020`, from 2015. |
+| Code         | Content                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `nrg_pc_204` | Household electricity prices, half-yearly. Band `KWH2500-4999`, all taxes, `EUR` per `KWH`. EU27 and `EU27_2020`, from 2015.       |
+| `nrg_pc_202` | Household gas prices, half-yearly. Band `GJ20-199`, all taxes, `EUR` per `KWH`. EU27 except CY and MT, and `EU27_2020`, from 2015. |
+| `nrg_chdd_a` | Heating degree days (`HDD` only), yearly. EU27 and `EU27_2020`, from 2015.                                                         |
 
-Data is downloaded from the Eurostat SDMX 2.1 data endpoint as compressed SDMX-CSV.
+> [!NOTE]
+> The list lives in `DATASETS` in `src/relife_eurostat/datasets.py`.
 
 ## Usage
 
