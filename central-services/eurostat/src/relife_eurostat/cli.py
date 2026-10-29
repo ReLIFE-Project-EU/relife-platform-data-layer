@@ -23,13 +23,21 @@ def _plan(datasets: Sequence[Dataset], store: Store) -> Evaluation:
 
         print(
             f"{dataset.code}: fetched {len(fetched)} values, "
-            f"{len(result.new)} new, {len(result.changed)} changed"
+            f"{len(result.new)} new, {len(result.changed)} changed, "
+            f"{len(result.flags)} flagged"
         )
+
+        for flag in result.flags:
+            print(f"  [{flag.check}] {flag.reason}")
 
         total.new.extend(result.new)
         total.changed.extend(result.changed)
+        total.flags.extend(result.flags)
 
-    print(f"Total: {len(total.new)} new, {len(total.changed)} changed")
+    print(
+        f"Total: {len(total.new)} new, {len(total.changed)} changed, "
+        f"{len(total.flags)} flagged"
+    )
 
     return total
 
@@ -37,7 +45,10 @@ def _plan(datasets: Sequence[Dataset], store: Store) -> Evaluation:
 def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
     if not apply:
         _plan(datasets, store)
-        print("Dry run: nothing was written. Pass --apply to store the values.")
+        print(
+            "Dry run: nothing was written. "
+            "Pass --apply to store the values and flags."
+        )
         return
 
     run_id = store.start_run()
@@ -48,7 +59,10 @@ def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
         # writes nothing
         result = _plan(datasets, store)
         store.insert_observations(run_id, result.new + result.changed)
-        store.succeed_run(run_id, len(result.new), len(result.changed))
+        new_flag_count = store.insert_flags(run_id, result.flags)
+        store.succeed_run(
+            run_id, len(result.new), len(result.changed), len(result.flags)
+        )
     except Exception as exc:
         try:
             store.fail_run(run_id, f"{type(exc).__name__}: {exc}")
@@ -58,7 +72,10 @@ def sync(datasets: Sequence[Dataset], store: Store, apply: bool) -> None:
 
         raise
 
-    print(f"Run {run_id} succeeded")
+    print(
+        f"Run {run_id} succeeded: {new_flag_count} new flags to review, "
+        f"{len(result.flags) - new_flag_count} already in the review list"
+    )
 
 
 def _create_store() -> Store:

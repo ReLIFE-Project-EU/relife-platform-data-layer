@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping
+from typing import Literal, Mapping
 
 SeriesPeriodKey = tuple[str, tuple[tuple[str, str], ...], str, str]
 
@@ -27,3 +27,19 @@ class Observation:
             self.geo,
             self.period,
         )
+
+
+QualityCheck = Literal["completeness", "outlier"]
+
+
+@dataclass(frozen=True)
+class QualityFlag:
+    """A suspicious value, or a missing one, in a series and period for a person to review."""
+
+    dataset_code: str
+    dimensions: Mapping[str, str]
+    geo: str
+    period: str
+    check: QualityCheck
+    # Short human-readable explanation shown to the reviewer
+    reason: str
