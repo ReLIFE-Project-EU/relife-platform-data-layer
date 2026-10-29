@@ -2,6 +2,7 @@ version: "3"
 
 includes:
   backup: ./Taskfile.backup.yml
+  eurostat: ./Taskfile.eurostat.yml
   proxy: ./Taskfile.proxy.yml
 
 vars:
