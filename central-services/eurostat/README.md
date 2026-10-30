@@ -42,7 +42,7 @@ uv run relife-eurostat sync
 - `eurostat_observations`: every value ever stored
 - `eurostat_quality_flags`: suspicious values to review
 
-Only the service role can read or write them.
+Anyone, logged in or not, can read all but `eurostat_runs`, so the web UI can use the prices. Only the service role can write them or read `eurostat_runs`.
 
 ## Review Flags
 
